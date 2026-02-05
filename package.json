@@ -1,0 +1,22 @@
+{
+  "name": "teta-tutorial",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build:tutorial": "bun run scripts/build-tutorial.ts",
+    "build:app": "bun build src/main.ts --outfile public/app.js --minify",
+    "build": "bun run build:tutorial && bun run build:app",
+    "serve": "bun run scripts/serve.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "dependencies": {
+    "@teta/teta": "npm:@jsr/teta__teta",
+    "monaco-editor": "^0.52.0"
+  }
+}
