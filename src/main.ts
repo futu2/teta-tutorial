@@ -1,3 +1,4 @@
+import * as duckdb from "@duckdb/duckdb-wasm";
 import * as Teta from "@teta/teta";
 
 type MonacoModule = typeof import("monaco-editor");
@@ -28,6 +29,11 @@ type AppHandle = {
 
 type AppWindow = Window & { App?: AppHandle };
 
+type DuckDbHandle = {
+  db: duckdb.AsyncDuckDB;
+  conn: duckdb.AsyncDuckDBConnection;
+};
+
 const DIALECT = "Postgresql" as const;
 const DEFAULT_SNIPPET = `import { table, t } from "@teta/teta";
 
@@ -42,6 +48,24 @@ const query = users.select((u) => ({
 }));
 
 query;`;
+
+const DATASETS = [
+  { name: "world", file: "./data/world.csv" },
+  { name: "nobel", file: "./data/nobel.csv" },
+  { name: "game", file: "./data/game.csv" },
+  { name: "goal", file: "./data/goal.csv" },
+  { name: "eteam", file: "./data/eteam.csv" },
+  { name: "movie", file: "./data/movie.csv" },
+  { name: "actor", file: "./data/actor.csv" },
+  { name: "casting", file: "./data/casting.csv" },
+  { name: "teacher", file: "./data/teacher.csv" },
+  { name: "dept", file: "./data/dept.csv" },
+  { name: "stop", file: "./data/stop.csv" },
+  { name: "route", file: "./data/route.csv" },
+];
+
+let latestSql = "";
+let duckdbHandle: DuckDbHandle | null = null;
 
 async function loadTutorial(): Promise<TutorialData> {
   const res = await fetch("./tutorial.json");
@@ -172,6 +196,147 @@ function executeCode(compiled: string) {
   );
 }
 
+function setDuckDbStatus(message: string) {
+  const statusEl = document.getElementById("duckdb-status");
+  if (statusEl) {
+    statusEl.textContent = message;
+  }
+}
+
+function setDuckDbError(message: string) {
+  const errorEl = document.getElementById("sql-runner-error");
+  if (errorEl) {
+    errorEl.textContent = message;
+  }
+}
+
+async function loadCsvTable(
+  db: duckdb.AsyncDuckDB,
+  conn: duckdb.AsyncDuckDBConnection,
+  name: string,
+  file: string
+) {
+  const res = await fetch(file);
+  if (!res.ok) {
+    console.warn(`Dataset ${name} not found at ${file}`);
+    return false;
+  }
+
+  const text = await res.text();
+  const fileName = `${name}.csv`;
+  await db.registerFileText(fileName, text);
+  await conn.query(
+    `CREATE OR REPLACE TABLE ${name} AS SELECT * FROM read_csv_auto('${fileName}', HEADER=true);`
+  );
+  return true;
+}
+
+async function initDuckDb(): Promise<DuckDbHandle> {
+  setDuckDbStatus("Initializing DuckDB...");
+
+  const base = window.location.href;
+  const bundles: duckdb.DuckDBBundles = {
+    mvp: {
+      mainModule: new URL("./duckdb/duckdb-mvp.wasm", base).toString(),
+      mainWorker: new URL(
+        "./duckdb/duckdb-browser-mvp.worker.js",
+        base
+      ).toString(),
+    },
+    eh: {
+      mainModule: new URL("./duckdb/duckdb-eh.wasm", base).toString(),
+      mainWorker: new URL(
+        "./duckdb/duckdb-browser-eh.worker.js",
+        base
+      ).toString(),
+    },
+  };
+
+  let bundle = await duckdb.selectBundle(bundles);
+  if (!bundle) {
+    bundle = bundles.mvp;
+  }
+  if (!bundle.mainWorker || !bundle.mainModule) {
+    throw new Error("DuckDB bundle assets missing. Run build to copy duckdb files.");
+  }
+  const worker = new Worker(bundle.mainWorker);
+  const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING);
+  const db = new duckdb.AsyncDuckDB(logger, worker);
+  await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+  const conn = await db.connect();
+
+  setDuckDbStatus("Loading datasets...");
+  let loadedCount = 0;
+  for (const dataset of DATASETS) {
+    const loaded = await loadCsvTable(db, conn, dataset.name, dataset.file);
+    if (loaded) {
+      loadedCount += 1;
+    }
+  }
+
+  setDuckDbStatus(
+    loadedCount > 0
+      ? `Ready (${loadedCount} tables loaded)`
+      : "Ready (no datasets found)"
+  );
+
+  return { db, conn };
+}
+
+function renderResults(rows: Array<Record<string, unknown>>) {
+  const resultsEl = document.getElementById("sql-results");
+  if (!resultsEl) {
+    return;
+  }
+
+  if (rows.length === 0) {
+    resultsEl.innerHTML = "<div class=\"output-error\">No rows returned.</div>";
+    return;
+  }
+
+  const columns = Object.keys(rows[0]);
+  const headerCells = columns.map((col) => `<th>${escapeHtml(col)}</th>`).join("");
+  const bodyRows = rows
+    .map((row) => {
+      const cells = columns
+        .map((col) => {
+          const value = row[col];
+          const text = value === null || value === undefined ? "" : String(value);
+          return `<td>${escapeHtml(text)}</td>`;
+        })
+        .join("");
+      return `<tr>${cells}</tr>`;
+    })
+    .join("");
+
+  resultsEl.innerHTML = `
+    <table>
+      <thead>
+        <tr>${headerCells}</tr>
+      </thead>
+      <tbody>
+        ${bodyRows}
+      </tbody>
+    </table>
+  `;
+}
+
+async function runDuckDbQuery(sql: string) {
+  if (!duckdbHandle) {
+    duckdbHandle = await initDuckDb();
+  }
+
+  setDuckDbError("");
+
+  try {
+    const result = await duckdbHandle.conn.query(sql);
+    const rows = result.toArray() as Array<Record<string, unknown>>;
+    renderResults(rows);
+  } catch (err) {
+    setDuckDbError(err instanceof Error ? err.message : String(err));
+  }
+}
+
 async function setupPlayground(monaco: MonacoModule, data: TutorialData) {
   const editorEl = document.getElementById("editor");
   if (!editorEl) {
@@ -215,6 +380,7 @@ async function setupPlayground(monaco: MonacoModule, data: TutorialData) {
   const outputEl = document.getElementById("sql-output");
   const errorEl = document.getElementById("playground-error");
   const runButton = document.getElementById("run-button");
+  const runSqlButton = document.getElementById("run-sql-button");
 
   const run = async () => {
     if (!outputEl || !errorEl) {
@@ -243,6 +409,7 @@ async function setupPlayground(monaco: MonacoModule, data: TutorialData) {
       }
 
       const sql = executeCode(jsOutput.text);
+      latestSql = sql;
       outputEl.textContent = sql;
     } catch (err) {
       outputEl.textContent = "";
@@ -250,7 +417,16 @@ async function setupPlayground(monaco: MonacoModule, data: TutorialData) {
     }
   };
 
+  const runSql = async () => {
+    if (!latestSql) {
+      setDuckDbError("No SQL available. Run the playground first.");
+      return;
+    }
+    await runDuckDbQuery(latestSql);
+  };
+
   runButton?.addEventListener("click", run);
+  runSqlButton?.addEventListener("click", runSql);
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, run);
   run();
 
@@ -267,6 +443,13 @@ async function init(monaco: MonacoModule) {
   const data = await loadTutorial();
   const playground = await setupPlayground(monaco, data);
   renderTutorial(data, (code) => playground.setCode(code));
+
+  try {
+    duckdbHandle = await initDuckDb();
+  } catch (err) {
+    setDuckDbStatus("DuckDB failed to load.");
+    setDuckDbError(err instanceof Error ? err.message : String(err));
+  }
 }
 
 const appWindow = window as AppWindow;

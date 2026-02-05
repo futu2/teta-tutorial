@@ -7,6 +7,14 @@ const ROOT = process.cwd();
 const OUTPUT_PATH = path.join(ROOT, "public", "tutorial.json");
 const MONACO_SRC = path.join(ROOT, "node_modules", "monaco-editor", "min", "vs");
 const MONACO_DEST = path.join(ROOT, "public", "monaco", "vs");
+const DUCKDB_SRC = path.join(
+  ROOT,
+  "node_modules",
+  "@duckdb",
+  "duckdb-wasm",
+  "dist"
+);
+const DUCKDB_DEST = path.join(ROOT, "public", "duckdb");
 const TETA_TYPES_PATH = path.join(ROOT, "public", "teta.d.ts");
 
 const TETA_TYPES = `declare module "@teta/teta" {
@@ -77,6 +85,22 @@ async function copyDir(src: string, dest: string) {
   }
 }
 
+async function copyDirIfExists(src: string, dest: string, label: string) {
+  try {
+    const stats = await fs.stat(src);
+    if (!stats.isDirectory()) {
+      return;
+    }
+    await copyDir(src, dest);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      console.warn(`Skipping ${label} assets (missing ${src}).`);
+      return;
+    }
+    throw err;
+  }
+}
+
 async function buildTutorial() {
   const sections: SectionOutput[] = [];
 
@@ -124,6 +148,7 @@ async function buildTutorial() {
   await fs.writeFile(OUTPUT_PATH, JSON.stringify(output, null, 2) + "\n");
   await fs.writeFile(TETA_TYPES_PATH, TETA_TYPES);
   await copyDir(MONACO_SRC, MONACO_DEST);
+  await copyDirIfExists(DUCKDB_SRC, DUCKDB_DEST, "DuckDB");
 }
 
 await buildTutorial();
