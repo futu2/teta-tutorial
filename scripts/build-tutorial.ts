@@ -21,13 +21,37 @@ const TETA_TYPES = `declare module "@teta/teta" {
   export type Dialect = "Postgresql" | "Mysql" | "Sqlite" | "Mssql";
   export type SqlFormat = "compact" | "pretty";
 
+  export type Expr<T = any> = any;
+
   export interface Query<T = any> {
     select<U>(fn: (row: T) => U): Query<U>;
-    where(fn: (row: T) => any): Query<T>;
-    groupBy(fn: (row: T) => any): Query<T>;
-    having(fn: (row: T) => any): Query<T>;
+    aggregate<U>(fn: (row: T) => U): Query<U>;
+    filter(fn: (row: T) => any): Query<T>;
     orderBy(fn: (row: T) => any): Query<T>;
     limit(count: number): Query<T>;
+    join<TRight>(
+      right: Query<TRight>,
+      on: (left: T, right: TRight) => any,
+      joinType?: "inner" | "left" | "right" | "full" | "INNER" | "LEFT" | "RIGHT" | "FULL"
+    ): Query<T & TRight>;
+    innerJoin<TRight>(
+      right: Query<TRight>,
+      on: (left: T, right: TRight) => any
+    ): Query<T & TRight>;
+    leftJoin<TRight>(
+      right: Query<TRight>,
+      on: (left: T, right: TRight) => any
+    ): Query<T & TRight>;
+    rightJoin<TRight>(
+      right: Query<TRight>,
+      on: (left: T, right: TRight) => any
+    ): Query<T & TRight>;
+    fullJoin<TRight>(
+      right: Query<TRight>,
+      on: (left: T, right: TRight) => any
+    ): Query<T & TRight>;
+    union(right: Query<T>): Query<T>;
+    unionAll(right: Query<T>): Query<T>;
     toSql(dialect?: Dialect, format?: SqlFormat): string;
   }
 
@@ -45,7 +69,19 @@ const TETA_TYPES = `declare module "@teta/teta" {
     timestamp(): any;
   };
 
-  export const fn: Record<string, (...args: any[]) => any>;
+  export const fn: (...args: any[]) => any;
+  export const windowFn: (...args: any[]) => any;
+  export function when(condition: any, value: any): any;
+  export function lit<T>(value: T): any;
+  export function f(strings: TemplateStringsArray, ...exprs: any[]): any;
+  export function currentDate(): any;
+  export function currentTimestamp(): any;
+  export function dateLiteral(value: string): any;
+  export function timestampLiteral(value: string): any;
+  export function loop<T extends Record<string, any>>(
+    schema: T,
+    builder: (self: Query<T>) => { base: Query<T>; step: Query<T> }
+  ): Query<T>;
 }
 `;
 
@@ -120,7 +156,7 @@ async function buildTutorial() {
         throw new Error(`Example ${example.file} query does not support toSql.`);
       }
 
-      const sql = mod.query.toSql(tutorial.dialect, "compact");
+      const sql = mod.query.toSql(tutorial.dialect, "pretty");
 
       examples.push({
         id: example.id,

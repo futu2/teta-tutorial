@@ -23,6 +23,14 @@ type TutorialData = {
   sections: Section[];
 };
 
+type FlatSection = {
+  id: string;
+  sectionId: string;
+  sectionTitle: string;
+  sectionIntro?: string;
+  example: Example;
+};
+
 type AppHandle = {
   init: (monaco: MonacoModule) => Promise<void>;
 };
@@ -34,20 +42,18 @@ type DuckDbHandle = {
   conn: duckdb.AsyncDuckDBConnection;
 };
 
+type ExamplePlaygroundRefs = {
+  editorHost: HTMLElement;
+  sqlOutput: HTMLElement;
+  tsError: HTMLElement;
+  runnerError: HTMLElement;
+  results: HTMLElement;
+  runTsButton: HTMLButtonElement;
+  runSqlButton: HTMLButtonElement;
+  statusEl: HTMLElement;
+};
+
 const DIALECT = "Postgresql" as const;
-const DEFAULT_SNIPPET = `import { table, t } from "@teta/teta";
-
-const users = table("users", {
-  id: t.int(),
-  name: t.string(),
-});
-
-const query = users.select((u) => ({
-  id: u.id,
-  name: u.name,
-}));
-
-query;`;
 
 const DATASETS = [
   { name: "world", file: "./data/world.csv" },
@@ -64,8 +70,10 @@ const DATASETS = [
   { name: "route", file: "./data/route.csv" },
 ];
 
-let latestSql = "";
 let duckdbHandle: DuckDbHandle | null = null;
+let duckdbStatus = "DuckDB idle";
+const duckdbStatusListeners = new Set<(message: string) => void>();
+let monacoConfigured = false;
 
 async function loadTutorial(): Promise<TutorialData> {
   const res = await fetch("./tutorial.json");
@@ -82,10 +90,45 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;");
 }
 
-function renderTutorial(
-  data: TutorialData,
-  onLoadExample: (code: string) => void
+function colorizeCodeBlock(
+  monaco: MonacoModule | null,
+  element: HTMLElement,
+  language: string
 ) {
+  if (!monaco) {
+    return;
+  }
+  element.setAttribute("data-lang", language);
+  monaco.editor
+    .colorizeElement(element, { theme: "vs-dark" })
+    .catch(() => undefined);
+}
+
+async function configureMonaco(monaco: MonacoModule) {
+  if (monacoConfigured) {
+    return;
+  }
+
+  const tetaTypes = await fetch("./teta.d.ts").then((res) => res.text());
+  monaco.languages.typescript.typescriptDefaults.addExtraLib(
+    tetaTypes,
+    "file:///node_modules/@teta/teta/index.d.ts"
+  );
+
+  monaco.languages.typescript.typescriptDefaults.setEagerModelSync(true);
+  monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+    target: monaco.languages.typescript.ScriptTarget.ES2020,
+    module: monaco.languages.typescript.ModuleKind.ESNext,
+    moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
+    allowNonTsExtensions: true,
+    strict: true,
+    noEmit: false,
+  });
+
+  monacoConfigured = true;
+}
+
+function renderTutorial(data: TutorialData, monaco: MonacoModule | null) {
   const nav = document.getElementById("nav");
   const content = document.getElementById("content");
 
@@ -93,72 +136,217 @@ function renderTutorial(
     return;
   }
 
+  const flatSections: FlatSection[] = [];
+  for (const section of data.sections) {
+    for (const example of section.examples) {
+      flatSections.push({
+        id: `${section.id}-${example.id}`,
+        sectionId: section.id,
+        sectionTitle: section.title,
+        sectionIntro: section.intro,
+        example,
+      });
+    }
+  }
+
+  const buildExampleView = (entry: FlatSection) => {
+    const sectionEl = document.createElement("section");
+    sectionEl.className = "section";
+    sectionEl.id = entry.id;
+
+    const header = document.createElement("div");
+    header.className = "section-heading";
+
+    const heading = document.createElement("h2");
+    heading.textContent = entry.sectionTitle;
+    header.appendChild(heading);
+
+    if (entry.sectionIntro) {
+      const intro = document.createElement("p");
+      intro.textContent = entry.sectionIntro;
+      header.appendChild(intro);
+    }
+    sectionEl.appendChild(header);
+
+    const playground = document.createElement("article");
+    playground.className = "playground example-playground";
+
+    const playgroundHeader = document.createElement("div");
+    playgroundHeader.className = "playground-header";
+
+    const exampleTitle = document.createElement("h3");
+    exampleTitle.textContent = entry.example.title;
+    playgroundHeader.appendChild(exampleTitle);
+
+    const actions = document.createElement("div");
+    actions.className = "example-actions";
+
+    const runTsButton = document.createElement("button");
+    runTsButton.type = "button";
+    runTsButton.className = "action-button secondary";
+    runTsButton.textContent = "Generate SQL";
+
+    const runSqlButton = document.createElement("button");
+    runSqlButton.type = "button";
+    runSqlButton.className = "action-button primary";
+    runSqlButton.textContent = "Run SQL";
+
+    const statusEl = document.createElement("span");
+    statusEl.className = "runner-status";
+
+    actions.append(runTsButton, runSqlButton, statusEl);
+    playgroundHeader.appendChild(actions);
+    playground.appendChild(playgroundHeader);
+
+    const grid = document.createElement("div");
+    grid.className = "example-grid";
+
+    const editorPanel = document.createElement("div");
+    editorPanel.className = "panel";
+
+    const editorTitle = document.createElement("div");
+    editorTitle.className = "output-title";
+    editorTitle.textContent = "TypeScript (Teta)";
+
+    const editorHost = document.createElement("div");
+    editorHost.className = "editor";
+
+    editorPanel.append(editorTitle, editorHost);
+
+    const sqlPanel = document.createElement("div");
+    sqlPanel.className = "panel";
+
+    const sqlTitle = document.createElement("div");
+    sqlTitle.className = "output-title";
+    sqlTitle.textContent = "Generated SQL";
+
+    const sqlOutput = document.createElement("pre");
+    sqlOutput.className = "code-block";
+    sqlOutput.setAttribute("data-lang", "sql");
+
+    const tsError = document.createElement("div");
+    tsError.className = "output-error";
+
+    sqlPanel.append(sqlTitle, sqlOutput, tsError);
+    grid.append(editorPanel, sqlPanel);
+    playground.appendChild(grid);
+
+    const runner = document.createElement("div");
+    runner.className = "sql-runner";
+
+    const runnerTitle = document.createElement("div");
+    runnerTitle.className = "output-title";
+    runnerTitle.textContent = "Query Results";
+
+    const runnerError = document.createElement("div");
+    runnerError.className = "output-error";
+
+    const results = document.createElement("div");
+    results.className = "sql-results";
+
+    runner.append(runnerTitle, runnerError, results);
+    playground.appendChild(runner);
+
+    sectionEl.appendChild(playground);
+
+    return {
+      sectionEl,
+      refs: {
+        editorHost,
+        sqlOutput,
+        tsError,
+        runnerError,
+        results,
+        runTsButton,
+        runSqlButton,
+        statusEl,
+      },
+    };
+  };
+
+  const navGroups = new Map<string, HTMLDivElement>();
+  let activeDispose: (() => void) | null = null;
+
+  const selectExample = (id: string | null) => {
+    let entry = flatSections.find((flat) => flat.id === id) ?? null;
+    if (!entry && id) {
+      entry = flatSections.find((flat) => flat.sectionId === id) ?? null;
+    }
+    if (!entry) {
+      entry = flatSections[0] ?? null;
+    }
+    if (!entry) {
+      return;
+    }
+
+    if (activeDispose) {
+      activeDispose();
+      activeDispose = null;
+    }
+
+    content.innerHTML = "";
+    const view = buildExampleView(entry);
+    content.appendChild(view.sectionEl);
+    if (monaco) {
+      activeDispose = setupExamplePlayground(monaco, entry.example, view.refs);
+    }
+
+    for (const link of nav.querySelectorAll("a")) {
+      link.classList.toggle("active", link.getAttribute("href") === `#${entry.id}`);
+    }
+    for (const [sectionId, group] of navGroups.entries()) {
+      group.classList.toggle("open", sectionId === entry.sectionId);
+    }
+    if (window.location.hash !== `#${entry.id}`) {
+      history.replaceState(null, "", `#${entry.id}`);
+    }
+  };
+
   nav.innerHTML = "";
   content.innerHTML = "";
 
   for (const section of data.sections) {
-    const link = document.createElement("a");
-    link.href = `#${section.id}`;
-    link.textContent = section.title;
-    nav.appendChild(link);
+    const group = document.createElement("div");
+    group.className = "nav-group";
+    group.dataset.sectionId = section.id;
 
-    const sectionEl = document.createElement("section");
-    sectionEl.className = "section";
-    sectionEl.id = section.id;
+    const label = document.createElement("button");
+    label.type = "button";
+    label.className = "nav-title";
+    label.textContent = section.title;
+    label.addEventListener("click", () => {
+      group.classList.toggle("open");
+    });
+    group.appendChild(label);
 
-    const heading = document.createElement("h2");
-    heading.textContent = section.title;
-    sectionEl.appendChild(heading);
-
-    if (section.intro) {
-      const intro = document.createElement("p");
-      intro.textContent = section.intro;
-      sectionEl.appendChild(intro);
-    }
-
-    if (section.examples.length === 0) {
-      const placeholder = document.createElement("p");
-      placeholder.textContent = "Examples coming soon.";
-      sectionEl.appendChild(placeholder);
-    }
+    const items = document.createElement("div");
+    items.className = "nav-items";
 
     for (const example of section.examples) {
-      const exampleEl = document.createElement("article");
-      exampleEl.className = "example";
-
-      const exampleTitle = document.createElement("h3");
-      exampleTitle.textContent = example.title;
-      exampleEl.appendChild(exampleTitle);
-
-      const actions = document.createElement("div");
-      actions.className = "example-actions";
-      const runButton = document.createElement("button");
-      runButton.type = "button";
-      runButton.textContent = "Load in playground";
-      runButton.addEventListener("click", () => onLoadExample(example.code));
-      actions.appendChild(runButton);
-      exampleEl.appendChild(actions);
-
-      const grid = document.createElement("div");
-      grid.className = "example-grid";
-
-      const tsBlock = document.createElement("pre");
-      tsBlock.className = "code-block";
-      tsBlock.innerHTML = escapeHtml(example.code);
-
-      const sqlBlock = document.createElement("pre");
-      sqlBlock.className = "code-block";
-      sqlBlock.innerHTML = escapeHtml(example.sql);
-
-      grid.appendChild(tsBlock);
-      grid.appendChild(sqlBlock);
-      exampleEl.appendChild(grid);
-
-      sectionEl.appendChild(exampleEl);
+      const flatId = `${section.id}-${example.id}`;
+      const link = document.createElement("a");
+      link.href = `#${flatId}`;
+      link.textContent = example.title;
+      link.addEventListener("click", (event) => {
+        event.preventDefault();
+        if (window.location.hash === `#${flatId}`) {
+          selectExample(flatId);
+        } else {
+          window.location.hash = flatId;
+        }
+      });
+      items.appendChild(link);
     }
 
-    content.appendChild(sectionEl);
+    group.appendChild(items);
+    nav.appendChild(group);
+    navGroups.set(section.id, group);
   }
+
+  selectExample(window.location.hash.slice(1) || null);
+  window.addEventListener("hashchange", () =>
+    selectExample(window.location.hash.slice(1))
+  );
 }
 
 function prepareUserCode(code: string) {
@@ -192,22 +380,24 @@ function executeCode(compiled: string) {
 
   return (result as { toSql: (dialect: string, format: string) => string }).toSql(
     DIALECT,
-    "compact"
+    "pretty"
   );
 }
 
 function setDuckDbStatus(message: string) {
-  const statusEl = document.getElementById("duckdb-status");
-  if (statusEl) {
-    statusEl.textContent = message;
+  duckdbStatus = message;
+  for (const listener of duckdbStatusListeners) {
+    listener(message);
   }
 }
 
-function setDuckDbError(message: string) {
-  const errorEl = document.getElementById("sql-runner-error");
-  if (errorEl) {
-    errorEl.textContent = message;
-  }
+function registerDuckDbStatus(element: HTMLElement) {
+  const listener = (message: string) => {
+    element.textContent = message;
+  };
+  listener(duckdbStatus);
+  duckdbStatusListeners.add(listener);
+  return () => duckdbStatusListeners.delete(listener);
 }
 
 async function loadCsvTable(
@@ -283,12 +473,10 @@ async function initDuckDb(): Promise<DuckDbHandle> {
   return { db, conn };
 }
 
-function renderResults(rows: Array<Record<string, unknown>>) {
-  const resultsEl = document.getElementById("sql-results");
-  if (!resultsEl) {
-    return;
-  }
-
+function renderResults(
+  rows: Array<Record<string, unknown>>,
+  resultsEl: HTMLElement
+) {
   if (rows.length === 0) {
     resultsEl.innerHTML = "<div class=\"output-error\">No rows returned.</div>";
     return;
@@ -321,74 +509,73 @@ function renderResults(rows: Array<Record<string, unknown>>) {
   `;
 }
 
-async function runDuckDbQuery(sql: string) {
+async function runDuckDbQuery(
+  sql: string,
+  resultsEl: HTMLElement,
+  errorEl: HTMLElement
+) {
   if (!duckdbHandle) {
     duckdbHandle = await initDuckDb();
   }
 
-  setDuckDbError("");
+  errorEl.textContent = "";
+  resultsEl.innerHTML = "";
 
   try {
     const result = await duckdbHandle.conn.query(sql);
     const rows = result.toArray() as Array<Record<string, unknown>>;
-    renderResults(rows);
+    renderResults(rows, resultsEl);
   } catch (err) {
-    setDuckDbError(err instanceof Error ? err.message : String(err));
+    errorEl.textContent = err instanceof Error ? err.message : String(err);
   }
 }
 
-async function setupPlayground(monaco: MonacoModule, data: TutorialData) {
-  const editorEl = document.getElementById("editor");
-  if (!editorEl) {
-    throw new Error("Editor container not found.");
-  }
+function setupExamplePlayground(
+  monaco: MonacoModule,
+  example: Example,
+  refs: ExamplePlaygroundRefs
+) {
+  const {
+    editorHost,
+    sqlOutput,
+    tsError,
+    runnerError,
+    results,
+    runTsButton,
+    runSqlButton,
+    statusEl,
+  } = refs;
 
-  const tetaTypes = await fetch("./teta.d.ts").then((res) => res.text());
-  monaco.languages.typescript.typescriptDefaults.addExtraLib(
-    tetaTypes,
-    "file:///node_modules/@teta/teta/index.d.ts"
+  const safeId = encodeURIComponent(example.id);
+  const editorModel = monaco.editor.createModel(
+    example.code,
+    "typescript",
+    monaco.Uri.parse(`inmemory://model/${safeId}.ts`)
+  );
+  const workerModel = monaco.editor.createModel(
+    "",
+    "typescript",
+    monaco.Uri.parse(`inmemory://model/${safeId}-worker.ts`)
   );
 
-  monaco.languages.typescript.typescriptDefaults.setEagerModelSync(true);
-  monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
-    target: monaco.languages.typescript.ScriptTarget.ES2020,
-    module: monaco.languages.typescript.ModuleKind.ESNext,
-    moduleResolution: monaco.languages.typescript.ModuleResolutionKind.NodeJs,
-    allowNonTsExtensions: true,
-    strict: true,
-    noEmit: false,
-  });
-
-  const firstExample = data.sections.flatMap((section) => section.examples)[0];
-  const initialCode = firstExample?.code ?? DEFAULT_SNIPPET;
-
-  const editor = monaco.editor.create(editorEl, {
-    value: initialCode,
+  const editor = monaco.editor.create(editorHost, {
+    model: editorModel,
     language: "typescript",
-    theme: "vs",
+    theme: "vs-dark",
     minimap: { enabled: false },
     fontSize: 13,
     scrollbar: { vertical: "auto" },
   });
 
-  const workerModel = monaco.editor.createModel(
-    "",
-    "typescript",
-    monaco.Uri.parse("inmemory://model/playground.ts")
-  );
+  let latestSql: string | null = null;
+  const clearStatus = registerDuckDbStatus(statusEl);
+  const controller = new AbortController();
 
-  const outputEl = document.getElementById("sql-output");
-  const errorEl = document.getElementById("playground-error");
-  const runButton = document.getElementById("run-button");
-  const runSqlButton = document.getElementById("run-sql-button");
-
-  const run = async () => {
-    if (!outputEl || !errorEl) {
-      return;
-    }
+  const runTs = async () => {
+    tsError.textContent = "";
+    sqlOutput.textContent = "";
 
     try {
-      errorEl.textContent = "";
       const cleaned = prepareUserCode(editor.getValue());
       workerModel.setValue(cleaned);
 
@@ -410,45 +597,69 @@ async function setupPlayground(monaco: MonacoModule, data: TutorialData) {
 
       const sql = executeCode(jsOutput.text);
       latestSql = sql;
-      outputEl.textContent = sql;
+      sqlOutput.textContent = sql;
+      colorizeCodeBlock(monaco, sqlOutput, "sql");
+      return sql;
     } catch (err) {
-      outputEl.textContent = "";
-      errorEl.textContent = err instanceof Error ? err.message : String(err);
+      latestSql = null;
+      tsError.textContent = err instanceof Error ? err.message : String(err);
+      return null;
     }
   };
 
   const runSql = async () => {
-    if (!latestSql) {
-      setDuckDbError("No SQL available. Run the playground first.");
+    runnerError.textContent = "";
+    const sql = await runTs();
+    if (!sql) {
+      runnerError.textContent = "No SQL available to run.";
       return;
     }
-    await runDuckDbQuery(latestSql);
+    await runDuckDbQuery(sql, results, runnerError);
   };
 
-  runButton?.addEventListener("click", run);
-  runSqlButton?.addEventListener("click", runSql);
-  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, run);
-  run();
-
-  return {
-    editor,
-    setCode: (code: string) => {
-      editor.setValue(code);
-      run();
+  runTsButton.addEventListener(
+    "click",
+    () => {
+      void runTs();
     },
+    { signal: controller.signal }
+  );
+  runSqlButton.addEventListener(
+    "click",
+    () => {
+      void runSql();
+    },
+    { signal: controller.signal }
+  );
+  editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+    void runTs();
+  });
+
+  void runTs();
+
+  return () => {
+    controller.abort();
+    clearStatus();
+    editor.dispose();
+    editorModel.dispose();
+    workerModel.dispose();
   };
 }
 
 async function init(monaco: MonacoModule) {
   const data = await loadTutorial();
-  const playground = await setupPlayground(monaco, data);
-  renderTutorial(data, (code) => playground.setCode(code));
+  await configureMonaco(monaco);
+  const headerStatus = document.getElementById("duckdb-status");
+  if (headerStatus) {
+    registerDuckDbStatus(headerStatus);
+  }
+  renderTutorial(data, monaco);
 
   try {
     duckdbHandle = await initDuckDb();
   } catch (err) {
-    setDuckDbStatus("DuckDB failed to load.");
-    setDuckDbError(err instanceof Error ? err.message : String(err));
+    const message = err instanceof Error ? err.message : String(err);
+    setDuckDbStatus(`DuckDB failed to load: ${message}`);
   }
 }
 
