@@ -5,6 +5,8 @@ import tutorial from "../tutorial/outline.ts";
 
 const ROOT = process.cwd();
 const OUTPUT_PATH = path.join(ROOT, "public", "tutorial.json");
+const STATIC_SRC = path.join(ROOT, "static");
+const STATIC_DEST = path.join(ROOT, "public");
 const MONACO_SRC = path.join(ROOT, "node_modules", "monaco-editor", "min", "vs");
 const MONACO_DEST = path.join(ROOT, "public", "monaco", "vs");
 const DUCKDB_SRC = path.join(
@@ -180,6 +182,7 @@ async function buildTutorial() {
     sections,
   };
 
+  await copyDirIfExists(STATIC_SRC, STATIC_DEST, "static");
   await fs.mkdir(path.dirname(OUTPUT_PATH), { recursive: true });
   await fs.writeFile(OUTPUT_PATH, JSON.stringify(output, null, 2) + "\n");
   await fs.writeFile(TETA_TYPES_PATH, TETA_TYPES);

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SQL EDSL Tutorial</title>
+    <meta
+      name="description"
+      content="Learn SQL through a typed EDSL and inspect the SQL it generates."
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="site-header">
+      <div class="brand">
+        <span class="brand-eyebrow">EDSL Tutorial</span>
+        <h1>SQL Zoo, rebuilt in TypeScript</h1>
+        <p>Learn SQL through a typed EDSL and inspect the SQL it generates.</p>
+      </div>
+      <div class="status-card">
+        <span class="status-label">DuckDB WASM</span>
+        <span id="duckdb-status" class="runner-status">Loading DuckDB...</span>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <nav id="nav"></nav>
+      </aside>
+
+      <section class="content">
+        <div id="content"></div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+    <script>
+      window.MonacoEnvironment = {
+        getWorkerUrl: function () {
+          return "./monaco-worker.js";
+        },
+      };
+    </script>
+    <script src="./monaco/vs/loader.js"></script>
+    <script>
+      require.config({ paths: { vs: "./monaco/vs" } });
+      require(["vs/editor/editor.main"], function () {
+        if (window.App && window.monaco) {
+          window.App.init(window.monaco);
+        }
+      });
+    </script>
+  </body>
+</html>
