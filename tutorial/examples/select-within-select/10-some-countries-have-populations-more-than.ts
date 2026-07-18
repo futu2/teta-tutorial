@@ -1,65 +1,113 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import {
+  and,
+  dropOverlapRight,
+  eq,
+  filter,
+  fold,
+  group,
+  gt,
+  inner,
+  join,
+  map,
+  max,
+  mul,
+  ne,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
+export const code = `import {
+  and,
+  dropOverlapRight,
+  eq,
+  filter,
+  fold,
+  group,
+  gt,
+  inner,
+  join,
+  map,
+  max,
+  mul,
+  ne,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
 const world = table("world", {
   name: t.string(),
   continent: t.string(),
   population: t.int(),
 });
-
-const other = world.select((w) => ({
-  other_name: w.name,
-  other_continent: w.continent,
-  other_population: w.population,
-}));
-
-const maxOther = world
-  .join(other, (w, o) =>
-    w.continent.eq(o.other_continent).and(w.name.ne(o.other_name))
-  )
-  .aggregate((w) => ({
-    name: w.name.group(),
-    continent: w.continent.group(),
-    population: w.population.group(),
-    max_other_population: w.other_population.max(),
-  }));
-
-const query = maxOther
-  .filter((w) => w.population.gt(w.max_other_population.mul(3)))
-  .select((w) => ({
+const other = pipe(
+  world,
+  map((w) => ({
+    other_name: w.name,
+    other_continent: w.continent,
+    other_population: w.population,
+  })),
+);
+const maxOther = pipe(
+  world,
+  join(
+    other,
+    inner(
+      (w, o) =>
+        and(eq(w.continent, o.other_continent), ne(w.name, o.other_name)),
+      dropOverlapRight(),
+    ),
+  ),
+  fold((w) => ({
+    name: group(w.name),
+    continent: group(w.continent),
+    population: group(w.population),
+    max_other_population: max(w.other_population),
+  })),
+);
+const query = pipe(
+  maxOther,
+  filter((w) => gt(w.population, mul(w.max_other_population, 3))),
+  map((w) => ({
     name: w.name,
     continent: w.continent,
-  }));
-
+  })),
+);
 query;`;
-
 const world = table("world", {
   name: t.string(),
   continent: t.string(),
   population: t.int(),
 });
-
-const other = world.select((w) => ({
-  other_name: w.name,
-  other_continent: w.continent,
-  other_population: w.population,
-}));
-
-const maxOther = world
-  .join(other, (w, o) =>
-    w.continent.eq(o.other_continent).and(w.name.ne(o.other_name))
-  )
-  .aggregate((w) => ({
-    name: w.name.group(),
-    continent: w.continent.group(),
-    population: w.population.group(),
-    max_other_population: w.other_population.max(),
-  }));
-
-export const query = maxOther
-  .filter((w) => w.population.gt(w.max_other_population.mul(3)))
-  .select((w) => ({
+const other = pipe(
+  world,
+  map((w) => ({
+    other_name: w.name,
+    other_continent: w.continent,
+    other_population: w.population,
+  })),
+);
+const maxOther = pipe(
+  world,
+  join(
+    other,
+    inner(
+      (w, o) =>
+        and(eq(w.continent, o.other_continent), ne(w.name, o.other_name)),
+      dropOverlapRight(),
+    ),
+  ),
+  fold((w) => ({
+    name: group(w.name),
+    continent: group(w.continent),
+    population: group(w.population),
+    max_other_population: max(w.other_population),
+  })),
+);
+export const query = pipe(
+  maxOther,
+  filter((w) => gt(w.population, mul(w.max_other_population, 3))),
+  map((w) => ({
     name: w.name,
     continent: w.continent,
-  }));
+  })),
+);

@@ -1,41 +1,71 @@
-import { lit, table, t } from "@teta/teta";
-
-export const code = `import { lit, table, t } from "@teta/teta";
-
+import {
+  dropOverlapRight,
+  eq,
+  filter,
+  gt,
+  inner,
+  join,
+  lit,
+  map,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
+export const code = `import {
+  dropOverlapRight,
+  eq,
+  filter,
+  gt,
+  inner,
+  join,
+  lit,
+  map,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
 const world = table("world", {
   name: t.string(),
   population: t.int(),
 });
-
-const russia = world
-  .filter((w) => w.name.eq("Russia"))
-  .select((w) => ({
+const russia = pipe(
+  world,
+  filter((w) => eq(w.name, "Russia")),
+  map((w) => ({
     russia_population: w.population,
-  }));
-
-const query = world
-  .join(russia, () => lit(true))
-  .filter((w) => w.population.gt(w.russia_population))
-  .select((w) => ({
+  })),
+);
+const query = pipe(
+  world,
+  join(
+    russia,
+    inner(() => lit(true), dropOverlapRight()),
+  ),
+  filter((w) => gt(w.population, w.russia_population)),
+  map((w) => ({
     name: w.name,
-  }));
-
+  })),
+);
 query;`;
-
 const world = table("world", {
   name: t.string(),
   population: t.int(),
 });
-
-const russia = world
-  .filter((w) => w.name.eq("Russia"))
-  .select((w) => ({
+const russia = pipe(
+  world,
+  filter((w) => eq(w.name, "Russia")),
+  map((w) => ({
     russia_population: w.population,
-  }));
-
-export const query = world
-  .join(russia, () => lit(true))
-  .filter((w) => w.population.gt(w.russia_population))
-  .select((w) => ({
+  })),
+);
+export const query = pipe(
+  world,
+  join(
+    russia,
+    inner(() => lit(true), dropOverlapRight()),
+  ),
+  filter((w) => gt(w.population, w.russia_population)),
+  map((w) => ({
     name: w.name,
-  }));
+  })),
+);

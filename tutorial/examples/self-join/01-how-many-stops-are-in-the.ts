@@ -1,19 +1,20 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import { count, fold, pipe, t, table } from "@teta/teta";
+export const code = `import { count, fold, pipe, t, table } from "@teta/teta";
 const stops = table("stops", {
   id: t.int(),
 });
-
-const query = stops.aggregate((s) => ({
-  stop_count: s.id.count(),
-}));
-
+const query = pipe(
+  stops,
+  fold((s) => ({
+    stop_count: count(s.id),
+  })),
+);
 query;`;
-
-export const query = table("stops", {
-  id: t.int(),
-}).aggregate((s) => ({
-  stop_count: s.id.count(),
-}));
+export const query = pipe(
+  table("stops", {
+    id: t.int(),
+  }),
+  fold((s) => ({
+    stop_count: count(s.id),
+  })),
+);

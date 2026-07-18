@@ -1,23 +1,24 @@
-import { table, t, when } from "@teta/teta";
-
-export const code = `import { table, t, when } from "@teta/teta";
-
+import { eq, map, or, pipe, t, table, when } from "@teta/teta";
+export const code = `import { eq, map, or, pipe, t, table, when } from "@teta/teta";
 const teacher = table("teacher", {
   name: t.string(),
   dept: t.int(),
 });
-
-const query = teacher.select((tch) => ({
-  name: tch.name,
-  faculty: when(tch.dept.eq(1).or(tch.dept.eq(2)), "Sci").else("Art"),
-}));
-
+const query = pipe(
+  teacher,
+  map((tch) => ({
+    name: tch.name,
+    faculty: when(or(eq(tch.dept, 1), eq(tch.dept, 2)), "Sci", true, "Art"),
+  })),
+);
 query;`;
-
-export const query = table("teacher", {
-  name: t.string(),
-  dept: t.int(),
-}).select((tch) => ({
-  name: tch.name,
-  faculty: when(tch.dept.eq(1).or(tch.dept.eq(2)), "Sci").else("Art"),
-}));
+export const query = pipe(
+  table("teacher", {
+    name: t.string(),
+    dept: t.int(),
+  }),
+  map((tch) => ({
+    name: tch.name,
+    faculty: when(or(eq(tch.dept, 1), eq(tch.dept, 2)), "Sci", true, "Art"),
+  })),
+);

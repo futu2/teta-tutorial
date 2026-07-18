@@ -1,25 +1,24 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import { eq, filter, map, pipe, t, table } from "@teta/teta";
+export const code = `import { eq, filter, map, pipe, t, table } from "@teta/teta";
 const actor = table("actor", {
   id: t.int(),
   name: t.string(),
 });
-
-const query = actor
-  .filter((a) => a.name.eq("Glenn Close"))
-  .select((a) => ({
+const query = pipe(
+  actor,
+  filter((a) => eq(a.name, "Glenn Close")),
+  map((a) => ({
     id: a.id,
-  }));
-
+  })),
+);
 query;`;
-
-export const query = table("actor", {
-  id: t.int(),
-  name: t.string(),
-})
-  .filter((a) => a.name.eq("Glenn Close"))
-  .select((a) => ({
+export const query = pipe(
+  table("actor", {
+    id: t.int(),
+    name: t.string(),
+  }),
+  filter((a) => eq(a.name, "Glenn Close")),
+  map((a) => ({
     id: a.id,
-  }));
+  })),
+);

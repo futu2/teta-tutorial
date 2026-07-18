@@ -1,99 +1,157 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import {
+  and,
+  dropOverlapRight,
+  eq,
+  filter,
+  inner,
+  join,
+  map,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
+export const code = `import {
+  and,
+  dropOverlapRight,
+  eq,
+  filter,
+  inner,
+  join,
+  map,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
 const route = table("route", {
   company: t.string(),
   num: t.string(),
   stop: t.int(),
 });
-
 const stops = table("stops", {
   id: t.int(),
   name: t.string(),
 });
-
-const routeA = route.select((r) => ({
-  a_company: r.company,
-  a_num: r.num,
-  a_stop: r.stop,
-}));
-
-const routeB = route.select((r) => ({
-  b_company: r.company,
-  b_num: r.num,
-  b_stop: r.stop,
-}));
-
-const stopA = stops.select((s) => ({
-  stopa_id: s.id,
-  stopa_name: s.name,
-}));
-
-const stopB = stops.select((s) => ({
-  stopb_id: s.id,
-  stopb_name: s.name,
-}));
-
-const query = routeA
-  .join(routeB, (a, b) => a.a_company.eq(b.b_company).and(a.a_num.eq(b.b_num)))
-  .join(stopA, (a, s) => a.a_stop.eq(s.stopa_id))
-  .join(stopB, (a, s) => a.b_stop.eq(s.stopb_id))
-  .filter((a) =>
-    a.stopa_name.eq("Craiglockhart").and(a.stopb_name.eq("London Road"))
-  )
-  .select((a) => ({
+const routeA = pipe(
+  route,
+  map((r) => ({
+    a_company: r.company,
+    a_num: r.num,
+    a_stop: r.stop,
+  })),
+);
+const routeB = pipe(
+  route,
+  map((r) => ({
+    b_company: r.company,
+    b_num: r.num,
+    b_stop: r.stop,
+  })),
+);
+const stopA = pipe(
+  stops,
+  map((s) => ({
+    stopa_id: s.id,
+    stopa_name: s.name,
+  })),
+);
+const stopB = pipe(
+  stops,
+  map((s) => ({
+    stopb_id: s.id,
+    stopb_name: s.name,
+  })),
+);
+const query = pipe(
+  routeA,
+  join(
+    routeB,
+    inner(
+      (a, b) => and(eq(a.a_company, b.b_company), eq(a.a_num, b.b_num)),
+      dropOverlapRight(),
+    ),
+  ),
+  join(
+    stopA,
+    inner((a, s) => eq(a.a_stop, s.stopa_id), dropOverlapRight()),
+  ),
+  join(
+    stopB,
+    inner((a, s) => eq(a.b_stop, s.stopb_id), dropOverlapRight()),
+  ),
+  filter((a) =>
+    and(eq(a.stopa_name, "Craiglockhart"), eq(a.stopb_name, "London Road")),
+  ),
+  map((a) => ({
     company: a.a_company,
     num: a.a_num,
     stopa: a.stopa_name,
     stopb: a.stopb_name,
-  }));
-
+  })),
+);
 query;`;
-
 const route = table("route", {
   company: t.string(),
   num: t.string(),
   stop: t.int(),
 });
-
 const stops = table("stops", {
   id: t.int(),
   name: t.string(),
 });
-
-const routeA = route.select((r) => ({
-  a_company: r.company,
-  a_num: r.num,
-  a_stop: r.stop,
-}));
-
-const routeB = route.select((r) => ({
-  b_company: r.company,
-  b_num: r.num,
-  b_stop: r.stop,
-}));
-
-const stopA = stops.select((s) => ({
-  stopa_id: s.id,
-  stopa_name: s.name,
-}));
-
-const stopB = stops.select((s) => ({
-  stopb_id: s.id,
-  stopb_name: s.name,
-}));
-
-export const query = routeA
-  .join(routeB, (a, b) => a.a_company.eq(b.b_company).and(a.a_num.eq(b.b_num)))
-  .join(stopA, (a, s) => a.a_stop.eq(s.stopa_id))
-  .join(stopB, (a, s) => a.b_stop.eq(s.stopb_id))
-  .filter((a) =>
-    a.stopa_name.eq("Craiglockhart").and(a.stopb_name.eq("London Road"))
-  )
-  .select((a) => ({
+const routeA = pipe(
+  route,
+  map((r) => ({
+    a_company: r.company,
+    a_num: r.num,
+    a_stop: r.stop,
+  })),
+);
+const routeB = pipe(
+  route,
+  map((r) => ({
+    b_company: r.company,
+    b_num: r.num,
+    b_stop: r.stop,
+  })),
+);
+const stopA = pipe(
+  stops,
+  map((s) => ({
+    stopa_id: s.id,
+    stopa_name: s.name,
+  })),
+);
+const stopB = pipe(
+  stops,
+  map((s) => ({
+    stopb_id: s.id,
+    stopb_name: s.name,
+  })),
+);
+export const query = pipe(
+  routeA,
+  join(
+    routeB,
+    inner(
+      (a, b) => and(eq(a.a_company, b.b_company), eq(a.a_num, b.b_num)),
+      dropOverlapRight(),
+    ),
+  ),
+  join(
+    stopA,
+    inner((a, s) => eq(a.a_stop, s.stopa_id), dropOverlapRight()),
+  ),
+  join(
+    stopB,
+    inner((a, s) => eq(a.b_stop, s.stopb_id), dropOverlapRight()),
+  ),
+  filter((a) =>
+    and(eq(a.stopa_name, "Craiglockhart"), eq(a.stopb_name, "London Road")),
+  ),
+  map((a) => ({
     company: a.a_company,
     num: a.a_num,
     stopa: a.stopa_name,
     stopb: a.stopb_name,
-  }));
+  })),
+);

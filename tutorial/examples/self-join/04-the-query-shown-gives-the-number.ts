@@ -1,33 +1,32 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import { count, eq, filter, fold, group, or, pipe, t, table } from "@teta/teta";
+export const code = `import { count, eq, filter, fold, group, or, pipe, t, table } from "@teta/teta";
 const route = table("route", {
   company: t.string(),
   num: t.string(),
   stop: t.int(),
 });
-
-const query = route
-  .filter((r) => r.stop.eq(149).or(r.stop.eq(53)))
-  .aggregate((r) => ({
-    company: r.company.group(),
-    num: r.num.group(),
-    stop_count: r.stop.count(),
-  }))
-  .filter((r) => r.stop_count.eq(2));
-
+const query = pipe(
+  route,
+  filter((r) => or(eq(r.stop, 149), eq(r.stop, 53))),
+  fold((r) => ({
+    company: group(r.company),
+    num: group(r.num),
+    stop_count: count(r.stop),
+  })),
+  filter((r) => eq(r.stop_count, 2)),
+);
 query;`;
-
-export const query = table("route", {
-  company: t.string(),
-  num: t.string(),
-  stop: t.int(),
-})
-  .filter((r) => r.stop.eq(149).or(r.stop.eq(53)))
-  .aggregate((r) => ({
-    company: r.company.group(),
-    num: r.num.group(),
-    stop_count: r.stop.count(),
-  }))
-  .filter((r) => r.stop_count.eq(2));
+export const query = pipe(
+  table("route", {
+    company: t.string(),
+    num: t.string(),
+    stop: t.int(),
+  }),
+  filter((r) => or(eq(r.stop, 149), eq(r.stop, 53))),
+  fold((r) => ({
+    company: group(r.company),
+    num: group(r.num),
+    stop_count: count(r.stop),
+  })),
+  filter((r) => eq(r.stop_count, 2)),
+);

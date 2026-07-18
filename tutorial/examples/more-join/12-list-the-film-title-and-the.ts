@@ -1,71 +1,115 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import {
+  dropOverlapRight,
+  eq,
+  filter,
+  fold,
+  group,
+  inner,
+  join,
+  map,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
+export const code = `import {
+  dropOverlapRight,
+  eq,
+  filter,
+  fold,
+  group,
+  inner,
+  join,
+  map,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
 const movie = table("movie", {
   id: t.int(),
   title: t.string(),
 });
-
 const casting = table("casting", {
   movieid: t.int(),
   actorid: t.int(),
   ord: t.int(),
 });
-
 const actor = table("actor", {
   id: t.int(),
   name: t.string(),
 });
-
-const julieMovies = casting
-  .join(actor, (c, a) => c.actorid.eq(a.id))
-  .filter((c) => c.name.eq("Julie Andrews"))
-  .aggregate((c) => ({
-    movieid: c.movieid.group(),
-  }));
-
-const query = movie
-  .join(casting, (m, c) => m.id.eq(c.movieid))
-  .join(actor, (m, a) => m.actorid.eq(a.id))
-  .filter((m) => m.ord.eq(1))
-  .join(julieMovies, (m, j) => m.id.eq(j.movieid))
-  .select((m) => ({
+const julieMovies = pipe(
+  casting,
+  join(
+    actor,
+    inner((c, a) => eq(c.actorid, a.id), dropOverlapRight()),
+  ),
+  filter((c) => eq(c.name, "Julie Andrews")),
+  fold((c) => ({
+    movieid: group(c.movieid),
+  })),
+);
+const query = pipe(
+  movie,
+  join(
+    casting,
+    inner((m, c) => eq(m.id, c.movieid), dropOverlapRight()),
+  ),
+  join(
+    actor,
+    inner((m, a) => eq(m.actorid, a.id), dropOverlapRight()),
+  ),
+  filter((m) => eq(m.ord, 1)),
+  join(
+    julieMovies,
+    inner((m, j) => eq(m.id, j.movieid), dropOverlapRight()),
+  ),
+  map((m) => ({
     title: m.title,
     name: m.name,
-  }));
-
+  })),
+);
 query;`;
-
 const movie = table("movie", {
   id: t.int(),
   title: t.string(),
 });
-
 const casting = table("casting", {
   movieid: t.int(),
   actorid: t.int(),
   ord: t.int(),
 });
-
 const actor = table("actor", {
   id: t.int(),
   name: t.string(),
 });
-
-const julieMovies = casting
-  .join(actor, (c, a) => c.actorid.eq(a.id))
-  .filter((c) => c.name.eq("Julie Andrews"))
-  .aggregate((c) => ({
-    movieid: c.movieid.group(),
-  }));
-
-export const query = movie
-  .join(casting, (m, c) => m.id.eq(c.movieid))
-  .join(actor, (m, a) => m.actorid.eq(a.id))
-  .filter((m) => m.ord.eq(1))
-  .join(julieMovies, (m, j) => m.id.eq(j.movieid))
-  .select((m) => ({
+const julieMovies = pipe(
+  casting,
+  join(
+    actor,
+    inner((c, a) => eq(c.actorid, a.id), dropOverlapRight()),
+  ),
+  filter((c) => eq(c.name, "Julie Andrews")),
+  fold((c) => ({
+    movieid: group(c.movieid),
+  })),
+);
+export const query = pipe(
+  movie,
+  join(
+    casting,
+    inner((m, c) => eq(m.id, c.movieid), dropOverlapRight()),
+  ),
+  join(
+    actor,
+    inner((m, a) => eq(m.actorid, a.id), dropOverlapRight()),
+  ),
+  filter((m) => eq(m.ord, 1)),
+  join(
+    julieMovies,
+    inner((m, j) => eq(m.id, j.movieid), dropOverlapRight()),
+  ),
+  map((m) => ({
     title: m.title,
     name: m.name,
-  }));
+  })),
+);

@@ -1,53 +1,77 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import {
+  and,
+  dropOverlapRight,
+  eq,
+  filter,
+  fold,
+  group,
+  inner,
+  join,
+  ne,
+  or,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
+export const code = `import {
+  and,
+  dropOverlapRight,
+  eq,
+  filter,
+  fold,
+  group,
+  inner,
+  join,
+  ne,
+  or,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
 const game = table("game", {
   id: t.int(),
   team1: t.string(),
   team2: t.string(),
 });
-
 const goal = table("goal", {
   matchid: t.int(),
   teamid: t.string(),
   player: t.string(),
 });
-
-const query = game
-  .join(goal, (g, go) => g.id.eq(go.matchid))
-  .filter((g) =>
-    g
-      .team1.eq("GER")
-      .or(g.team2.eq("GER"))
-      .and(g.teamid.ne("GER"))
-  )
-  .aggregate((g) => ({
-    player: g.player.group(),
-  }));
-
+const query = pipe(
+  game,
+  join(
+    goal,
+    inner((g, go) => eq(g.id, go.matchid), dropOverlapRight()),
+  ),
+  filter((g) =>
+    and(or(eq(g.team1, "GER"), eq(g.team2, "GER")), ne(g.teamid, "GER")),
+  ),
+  fold((g) => ({
+    player: group(g.player),
+  })),
+);
 query;`;
-
 const game = table("game", {
   id: t.int(),
   team1: t.string(),
   team2: t.string(),
 });
-
 const goal = table("goal", {
   matchid: t.int(),
   teamid: t.string(),
   player: t.string(),
 });
-
-export const query = game
-  .join(goal, (g, go) => g.id.eq(go.matchid))
-  .filter((g) =>
-    g
-      .team1.eq("GER")
-      .or(g.team2.eq("GER"))
-      .and(g.teamid.ne("GER"))
-  )
-  .aggregate((g) => ({
-    player: g.player.group(),
-  }));
+export const query = pipe(
+  game,
+  join(
+    goal,
+    inner((g, go) => eq(g.id, go.matchid), dropOverlapRight()),
+  ),
+  filter((g) =>
+    and(or(eq(g.team1, "GER"), eq(g.team2, "GER")), ne(g.teamid, "GER")),
+  ),
+  fold((g) => ({
+    player: group(g.player),
+  })),
+);

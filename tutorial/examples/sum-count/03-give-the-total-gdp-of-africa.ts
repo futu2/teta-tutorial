@@ -1,25 +1,24 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import { eq, filter, fold, pipe, sum, t, table } from "@teta/teta";
+export const code = `import { eq, filter, fold, pipe, sum, t, table } from "@teta/teta";
 const world = table("world", {
   continent: t.string(),
   gdp: t.float(),
 });
-
-const query = world
-  .filter((w) => w.continent.eq("Africa"))
-  .aggregate((w) => ({
-    total_gdp: w.gdp.sum(),
-  }));
-
+const query = pipe(
+  world,
+  filter((w) => eq(w.continent, "Africa")),
+  fold((w) => ({
+    total_gdp: sum(w.gdp),
+  })),
+);
 query;`;
-
-export const query = table("world", {
-  continent: t.string(),
-  gdp: t.float(),
-})
-  .filter((w) => w.continent.eq("Africa"))
-  .aggregate((w) => ({
-    total_gdp: w.gdp.sum(),
-  }));
+export const query = pipe(
+  table("world", {
+    continent: t.string(),
+    gdp: t.float(),
+  }),
+  filter((w) => eq(w.continent, "Africa")),
+  fold((w) => ({
+    total_gdp: sum(w.gdp),
+  })),
+);

@@ -1,43 +1,79 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import {
+  asc,
+  dropOverlapRight,
+  eq,
+  filter,
+  fold,
+  group,
+  inner,
+  join,
+  map,
+  or,
+  pipe,
+  sort,
+  t,
+  table,
+} from "@teta/teta";
+export const code = `import {
+  asc,
+  dropOverlapRight,
+  eq,
+  filter,
+  fold,
+  group,
+  inner,
+  join,
+  map,
+  or,
+  pipe,
+  sort,
+  t,
+  table,
+} from "@teta/teta";
 const world = table("world", {
   name: t.string(),
   continent: t.string(),
 });
-
-const targetContinents = world
-  .filter((w) => w.name.eq("Australia").or(w.name.eq("Argentina")))
-  .aggregate((w) => ({
-    continent: w.continent.group(),
-  }));
-
-const query = world
-  .join(targetContinents, (w, c) => w.continent.eq(c.continent))
-  .select((w) => ({
+const targetContinents = pipe(
+  world,
+  filter((w) => or(eq(w.name, "Australia"), eq(w.name, "Argentina"))),
+  fold((w) => ({
+    continent: group(w.continent),
+  })),
+);
+const query = pipe(
+  world,
+  join(
+    targetContinents,
+    inner((w, c) => eq(w.continent, c.continent), dropOverlapRight()),
+  ),
+  map((w) => ({
     name: w.name,
     continent: w.continent,
-  }))
-  .orderBy((w) => w.name.asc());
-
+  })),
+  sort((w) => asc(w.name)),
+);
 query;`;
-
 const world = table("world", {
   name: t.string(),
   continent: t.string(),
 });
-
-const targetContinents = world
-  .filter((w) => w.name.eq("Australia").or(w.name.eq("Argentina")))
-  .aggregate((w) => ({
-    continent: w.continent.group(),
-  }));
-
-export const query = world
-  .join(targetContinents, (w, c) => w.continent.eq(c.continent))
-  .select((w) => ({
+const targetContinents = pipe(
+  world,
+  filter((w) => or(eq(w.name, "Australia"), eq(w.name, "Argentina"))),
+  fold((w) => ({
+    continent: group(w.continent),
+  })),
+);
+export const query = pipe(
+  world,
+  join(
+    targetContinents,
+    inner((w, c) => eq(w.continent, c.continent), dropOverlapRight()),
+  ),
+  map((w) => ({
     name: w.name,
     continent: w.continent,
-  }))
-  .orderBy((w) => w.name.asc());
+  })),
+  sort((w) => asc(w.name)),
+);

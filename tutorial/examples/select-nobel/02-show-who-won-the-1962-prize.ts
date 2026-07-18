@@ -1,27 +1,26 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import { and, eq, filter, map, pipe, t, table } from "@teta/teta";
+export const code = `import { and, eq, filter, map, pipe, t, table } from "@teta/teta";
 const nobel = table("nobel", {
   yr: t.int(),
   subject: t.string(),
   winner: t.string(),
 });
-
-const query = nobel
-  .filter((n) => n.yr.eq(1962).and(n.subject.eq("literature")))
-  .select((n) => ({
+const query = pipe(
+  nobel,
+  filter((n) => and(eq(n.yr, 1962), eq(n.subject, "literature"))),
+  map((n) => ({
     winner: n.winner,
-  }));
-
+  })),
+);
 query;`;
-
-export const query = table("nobel", {
-  yr: t.int(),
-  subject: t.string(),
-  winner: t.string(),
-})
-  .filter((n) => n.yr.eq(1962).and(n.subject.eq("literature")))
-  .select((n) => ({
+export const query = pipe(
+  table("nobel", {
+    yr: t.int(),
+    subject: t.string(),
+    winner: t.string(),
+  }),
+  filter((n) => and(eq(n.yr, 1962), eq(n.subject, "literature"))),
+  map((n) => ({
     winner: n.winner,
-  }));
+  })),
+);

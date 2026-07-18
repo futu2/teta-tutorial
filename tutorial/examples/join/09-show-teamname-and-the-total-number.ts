@@ -1,37 +1,61 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import {
+  count,
+  dropOverlapRight,
+  eq,
+  fold,
+  group,
+  inner,
+  join,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
+export const code = `import {
+  count,
+  dropOverlapRight,
+  eq,
+  fold,
+  group,
+  inner,
+  join,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
 const eteam = table("eteam", {
   id: t.string(),
   teamname: t.string(),
 });
-
 const goal = table("goal", {
   teamid: t.string(),
 });
-
-const query = eteam
-  .join(goal, (e, g) => e.id.eq(g.teamid))
-  .aggregate((e) => ({
-    teamname: e.teamname.group(),
-    goal_count: e.teamid.count(),
-  }));
-
+const query = pipe(
+  eteam,
+  join(
+    goal,
+    inner((e, g) => eq(e.id, g.teamid), dropOverlapRight()),
+  ),
+  fold((e) => ({
+    teamname: group(e.teamname),
+    goal_count: count(e.teamid),
+  })),
+);
 query;`;
-
 const eteam = table("eteam", {
   id: t.string(),
   teamname: t.string(),
 });
-
 const goal = table("goal", {
   teamid: t.string(),
 });
-
-export const query = eteam
-  .join(goal, (e, g) => e.id.eq(g.teamid))
-  .aggregate((e) => ({
-    teamname: e.teamname.group(),
-    goal_count: e.teamid.count(),
-  }));
+export const query = pipe(
+  eteam,
+  join(
+    goal,
+    inner((e, g) => eq(e.id, g.teamid), dropOverlapRight()),
+  ),
+  fold((e) => ({
+    teamname: group(e.teamname),
+    goal_count: count(e.teamid),
+  })),
+);

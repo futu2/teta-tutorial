@@ -1,157 +1,253 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import {
+  and,
+  asc,
+  dropOverlapRight,
+  eq,
+  filter,
+  inner,
+  join,
+  map,
+  pipe,
+  sort,
+  t,
+  table,
+} from "@teta/teta";
+export const code = `import {
+  and,
+  asc,
+  dropOverlapRight,
+  eq,
+  filter,
+  inner,
+  join,
+  map,
+  pipe,
+  sort,
+  t,
+  table,
+} from "@teta/teta";
 const stops = table("stops", {
   id: t.int(),
   name: t.string(),
 });
-
 const route = table("route", {
   company: t.string(),
   num: t.string(),
   stop: t.int(),
 });
-
-const craig = stops
-  .filter((s) => s.name.eq("Craiglockhart"))
-  .select((s) => ({
+const craig = pipe(
+  stops,
+  filter((s) => eq(s.name, "Craiglockhart")),
+  map((s) => ({
     craig_id: s.id,
-  }));
-
-const lochend = stops
-  .filter((s) => s.name.eq("Lochend"))
-  .select((s) => ({
+  })),
+);
+const lochend = pipe(
+  stops,
+  filter((s) => eq(s.name, "Lochend")),
+  map((s) => ({
     lochend_id: s.id,
-  }));
-
-const routeA = route.select((r) => ({
-  a_company: r.company,
-  a_num: r.num,
-  a_stop: r.stop,
-}));
-
-const routeB = route.select((r) => ({
-  b_company: r.company,
-  b_num: r.num,
-  b_stop: r.stop,
-}));
-
-const bus1 = routeA
-  .join(routeB, (a, b) => a.a_company.eq(b.b_company).and(a.a_num.eq(b.b_num)))
-  .join(craig, (a, c) => a.a_stop.eq(c.craig_id))
-  .select((a) => ({
+  })),
+);
+const routeA = pipe(
+  route,
+  map((r) => ({
+    a_company: r.company,
+    a_num: r.num,
+    a_stop: r.stop,
+  })),
+);
+const routeB = pipe(
+  route,
+  map((r) => ({
+    b_company: r.company,
+    b_num: r.num,
+    b_stop: r.stop,
+  })),
+);
+const bus1 = pipe(
+  routeA,
+  join(
+    routeB,
+    inner(
+      (a, b) => and(eq(a.a_company, b.b_company), eq(a.a_num, b.b_num)),
+      dropOverlapRight(),
+    ),
+  ),
+  join(
+    craig,
+    inner((a, c) => eq(a.a_stop, c.craig_id), dropOverlapRight()),
+  ),
+  map((a) => ({
     bus1_company: a.a_company,
     bus1_num: a.a_num,
     transfer_stop: a.b_stop,
-  }));
-
-const bus2 = routeA
-  .join(routeB, (a, b) => a.a_company.eq(b.b_company).and(a.a_num.eq(b.b_num)))
-  .join(lochend, (a, l) => a.a_stop.eq(l.lochend_id))
-  .select((a) => ({
+  })),
+);
+const bus2 = pipe(
+  routeA,
+  join(
+    routeB,
+    inner(
+      (a, b) => and(eq(a.a_company, b.b_company), eq(a.a_num, b.b_num)),
+      dropOverlapRight(),
+    ),
+  ),
+  join(
+    lochend,
+    inner((a, l) => eq(a.a_stop, l.lochend_id), dropOverlapRight()),
+  ),
+  map((a) => ({
     bus2_company: a.a_company,
     bus2_num: a.a_num,
     transfer_stop: a.b_stop,
-  }));
-
-const transfer = stops.select((s) => ({
-  stop_id: s.id,
-  stop_name: s.name,
-}));
-
-const query = bus1
-  .join(bus2, (b1, b2) => b1.transfer_stop.eq(b2.transfer_stop))
-  .join(transfer, (b1, s) => b1.transfer_stop.eq(s.stop_id))
-  .select((b1) => ({
+  })),
+);
+const transfer = pipe(
+  stops,
+  map((s) => ({
+    stop_id: s.id,
+    stop_name: s.name,
+  })),
+);
+const query = pipe(
+  bus1,
+  join(
+    bus2,
+    inner(
+      (b1, b2) => eq(b1.transfer_stop, b2.transfer_stop),
+      dropOverlapRight(),
+    ),
+  ),
+  join(
+    transfer,
+    inner((b1, s) => eq(b1.transfer_stop, s.stop_id), dropOverlapRight()),
+  ),
+  map((b1) => ({
     bus1_num: b1.bus1_num,
     bus1_company: b1.bus1_company,
     transfer: b1.stop_name,
     bus2_num: b1.bus2_num,
     bus2_company: b1.bus2_company,
-  }))
-  .orderBy((b1) => [
-    b1.bus1_num.asc(),
-    b1.bus1_company.asc(),
-    b1.transfer.asc(),
-    b1.bus2_num.asc(),
-    b1.bus2_company.asc(),
-  ]);
-
+  })),
+  sort((b1) => [
+    asc(b1.bus1_num),
+    asc(b1.bus1_company),
+    asc(b1.transfer),
+    asc(b1.bus2_num),
+    asc(b1.bus2_company),
+  ]),
+);
 query;`;
-
 const stops = table("stops", {
   id: t.int(),
   name: t.string(),
 });
-
 const route = table("route", {
   company: t.string(),
   num: t.string(),
   stop: t.int(),
 });
-
-const craig = stops
-  .filter((s) => s.name.eq("Craiglockhart"))
-  .select((s) => ({
+const craig = pipe(
+  stops,
+  filter((s) => eq(s.name, "Craiglockhart")),
+  map((s) => ({
     craig_id: s.id,
-  }));
-
-const lochend = stops
-  .filter((s) => s.name.eq("Lochend"))
-  .select((s) => ({
+  })),
+);
+const lochend = pipe(
+  stops,
+  filter((s) => eq(s.name, "Lochend")),
+  map((s) => ({
     lochend_id: s.id,
-  }));
-
-const routeA = route.select((r) => ({
-  a_company: r.company,
-  a_num: r.num,
-  a_stop: r.stop,
-}));
-
-const routeB = route.select((r) => ({
-  b_company: r.company,
-  b_num: r.num,
-  b_stop: r.stop,
-}));
-
-const bus1 = routeA
-  .join(routeB, (a, b) => a.a_company.eq(b.b_company).and(a.a_num.eq(b.b_num)))
-  .join(craig, (a, c) => a.a_stop.eq(c.craig_id))
-  .select((a) => ({
+  })),
+);
+const routeA = pipe(
+  route,
+  map((r) => ({
+    a_company: r.company,
+    a_num: r.num,
+    a_stop: r.stop,
+  })),
+);
+const routeB = pipe(
+  route,
+  map((r) => ({
+    b_company: r.company,
+    b_num: r.num,
+    b_stop: r.stop,
+  })),
+);
+const bus1 = pipe(
+  routeA,
+  join(
+    routeB,
+    inner(
+      (a, b) => and(eq(a.a_company, b.b_company), eq(a.a_num, b.b_num)),
+      dropOverlapRight(),
+    ),
+  ),
+  join(
+    craig,
+    inner((a, c) => eq(a.a_stop, c.craig_id), dropOverlapRight()),
+  ),
+  map((a) => ({
     bus1_company: a.a_company,
     bus1_num: a.a_num,
     transfer_stop: a.b_stop,
-  }));
-
-const bus2 = routeA
-  .join(routeB, (a, b) => a.a_company.eq(b.b_company).and(a.a_num.eq(b.b_num)))
-  .join(lochend, (a, l) => a.a_stop.eq(l.lochend_id))
-  .select((a) => ({
+  })),
+);
+const bus2 = pipe(
+  routeA,
+  join(
+    routeB,
+    inner(
+      (a, b) => and(eq(a.a_company, b.b_company), eq(a.a_num, b.b_num)),
+      dropOverlapRight(),
+    ),
+  ),
+  join(
+    lochend,
+    inner((a, l) => eq(a.a_stop, l.lochend_id), dropOverlapRight()),
+  ),
+  map((a) => ({
     bus2_company: a.a_company,
     bus2_num: a.a_num,
     transfer_stop: a.b_stop,
-  }));
-
-const transfer = stops.select((s) => ({
-  stop_id: s.id,
-  stop_name: s.name,
-}));
-
-export const query = bus1
-  .join(bus2, (b1, b2) => b1.transfer_stop.eq(b2.transfer_stop))
-  .join(transfer, (b1, s) => b1.transfer_stop.eq(s.stop_id))
-  .select((b1) => ({
+  })),
+);
+const transfer = pipe(
+  stops,
+  map((s) => ({
+    stop_id: s.id,
+    stop_name: s.name,
+  })),
+);
+export const query = pipe(
+  bus1,
+  join(
+    bus2,
+    inner(
+      (b1, b2) => eq(b1.transfer_stop, b2.transfer_stop),
+      dropOverlapRight(),
+    ),
+  ),
+  join(
+    transfer,
+    inner((b1, s) => eq(b1.transfer_stop, s.stop_id), dropOverlapRight()),
+  ),
+  map((b1) => ({
     bus1_num: b1.bus1_num,
     bus1_company: b1.bus1_company,
     transfer: b1.stop_name,
     bus2_num: b1.bus2_num,
     bus2_company: b1.bus2_company,
-  }))
-  .orderBy((b1) => [
-    b1.bus1_num.asc(),
-    b1.bus1_company.asc(),
-    b1.transfer.asc(),
-    b1.bus2_num.asc(),
-    b1.bus2_company.asc(),
-  ]);
+  })),
+  sort((b1) => [
+    asc(b1.bus1_num),
+    asc(b1.bus1_company),
+    asc(b1.transfer),
+    asc(b1.bus2_num),
+    asc(b1.bus2_company),
+  ]),
+);

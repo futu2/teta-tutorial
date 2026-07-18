@@ -1,29 +1,28 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import { div, filter, gt, map, pipe, t, table } from "@teta/teta";
+export const code = `import { div, filter, gt, map, pipe, t, table } from "@teta/teta";
 const world = table("world", {
   name: t.string(),
   population: t.int(),
   gdp: t.float(),
 });
-
-const query = world
-  .filter((w) => w.population.gt(200000000))
-  .select((w) => ({
+const query = pipe(
+  world,
+  filter((w) => gt(w.population, 200000000)),
+  map((w) => ({
     name: w.name,
-    per_capita_gdp: w.gdp.div(w.population),
-  }));
-
+    per_capita_gdp: div(w.gdp, w.population),
+  })),
+);
 query;`;
-
-export const query = table("world", {
-  name: t.string(),
-  population: t.int(),
-  gdp: t.float(),
-})
-  .filter((w) => w.population.gt(200000000))
-  .select((w) => ({
+export const query = pipe(
+  table("world", {
+    name: t.string(),
+    population: t.int(),
+    gdp: t.float(),
+  }),
+  filter((w) => gt(w.population, 200000000)),
+  map((w) => ({
     name: w.name,
-    per_capita_gdp: w.gdp.div(w.population),
-  }));
+    per_capita_gdp: div(w.gdp, w.population),
+  })),
+);

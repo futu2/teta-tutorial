@@ -1,39 +1,61 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import {
+  dropOverlapRight,
+  eq,
+  filter,
+  inner,
+  join,
+  map,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
+export const code = `import {
+  dropOverlapRight,
+  eq,
+  filter,
+  inner,
+  join,
+  map,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
 const goal = table("goal", {
   matchid: t.int(),
   player: t.string(),
 });
-
 const game = table("game", {
   id: t.int(),
   stadium: t.string(),
 });
-
-const query = goal
-  .join(game, (g, gm) => g.matchid.eq(gm.id))
-  .filter((g) => g.stadium.eq("National Stadium, Warsaw"))
-  .select((g) => ({
+const query = pipe(
+  goal,
+  join(
+    game,
+    inner((g, gm) => eq(g.matchid, gm.id), dropOverlapRight()),
+  ),
+  filter((g) => eq(g.stadium, "National Stadium, Warsaw")),
+  map((g) => ({
     player: g.player,
-  }));
-
+  })),
+);
 query;`;
-
 const goal = table("goal", {
   matchid: t.int(),
   player: t.string(),
 });
-
 const game = table("game", {
   id: t.int(),
   stadium: t.string(),
 });
-
-export const query = goal
-  .join(game, (g, gm) => g.matchid.eq(gm.id))
-  .filter((g) => g.stadium.eq("National Stadium, Warsaw"))
-  .select((g) => ({
+export const query = pipe(
+  goal,
+  join(
+    game,
+    inner((g, gm) => eq(g.matchid, gm.id), dropOverlapRight()),
+  ),
+  filter((g) => eq(g.stadium, "National Stadium, Warsaw")),
+  map((g) => ({
     player: g.player,
-  }));
+  })),
+);

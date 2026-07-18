@@ -1,23 +1,22 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import { filter, like, map, pipe, t, table } from "@teta/teta";
+export const code = `import { filter, like, map, pipe, t, table } from "@teta/teta";
 const nobel = table("nobel", {
   winner: t.string(),
 });
-
-const query = nobel
-  .filter((n) => n.winner.like("John %"))
-  .select((n) => ({
+const query = pipe(
+  nobel,
+  filter((n) => like(n.winner, "John %")),
+  map((n) => ({
     winner: n.winner,
-  }));
-
+  })),
+);
 query;`;
-
-export const query = table("nobel", {
-  winner: t.string(),
-})
-  .filter((n) => n.winner.like("John %"))
-  .select((n) => ({
+export const query = pipe(
+  table("nobel", {
+    winner: t.string(),
+  }),
+  filter((n) => like(n.winner, "John %")),
+  map((n) => ({
     winner: n.winner,
-  }));
+  })),
+);

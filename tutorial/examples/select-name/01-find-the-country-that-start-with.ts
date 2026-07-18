@@ -1,23 +1,22 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import { filter, like, map, pipe, t, table } from "@teta/teta";
+export const code = `import { filter, like, map, pipe, t, table } from "@teta/teta";
 const world = table("world", {
   name: t.string(),
 });
-
-const query = world
-  .filter((w) => w.name.like("Y%"))
-  .select((w) => ({
+const query = pipe(
+  world,
+  filter((w) => like(w.name, "Y%")),
+  map((w) => ({
     name: w.name,
-  }));
-
+  })),
+);
 query;`;
-
-export const query = table("world", {
-  name: t.string(),
-})
-  .filter((w) => w.name.like("Y%"))
-  .select((w) => ({
+export const query = pipe(
+  table("world", {
+    name: t.string(),
+  }),
+  filter((w) => like(w.name, "Y%")),
+  map((w) => ({
     name: w.name,
-  }));
+  })),
+);

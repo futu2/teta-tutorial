@@ -1,25 +1,24 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import { concat, eq, filter, map, pipe, t, table } from "@teta/teta";
+export const code = `import { concat, eq, filter, map, pipe, t, table } from "@teta/teta";
 const world = table("world", {
   name: t.string(),
   capital: t.string(),
 });
-
-const query = world
-  .filter((w) => w.capital.eq(w.name.concat(" City")))
-  .select((w) => ({
+const query = pipe(
+  world,
+  filter((w) => eq(w.capital, concat(w.name, " City"))),
+  map((w) => ({
     name: w.name,
-  }));
-
+  })),
+);
 query;`;
-
-export const query = table("world", {
-  name: t.string(),
-  capital: t.string(),
-})
-  .filter((w) => w.capital.eq(w.name.concat(" City")))
-  .select((w) => ({
+export const query = pipe(
+  table("world", {
+    name: t.string(),
+    capital: t.string(),
+  }),
+  filter((w) => eq(w.capital, concat(w.name, " City"))),
+  map((w) => ({
     name: w.name,
-  }));
+  })),
+);

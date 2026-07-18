@@ -1,63 +1,93 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import {
+  and,
+  dropOverlapRight,
+  eq,
+  filter,
+  inner,
+  join,
+  map,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
+export const code = `import {
+  and,
+  dropOverlapRight,
+  eq,
+  filter,
+  inner,
+  join,
+  map,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
 const movie = table("movie", {
   id: t.int(),
   title: t.string(),
   yr: t.int(),
 });
-
 const casting = table("casting", {
   movieid: t.int(),
   actorid: t.int(),
 });
-
 const actor = table("actor", {
   id: t.int(),
   name: t.string(),
 });
-
-const casablanca = movie
-  .filter((m) => m.title.eq("Casablanca").and(m.yr.eq(1942)))
-  .select((m) => ({
+const casablanca = pipe(
+  movie,
+  filter((m) => and(eq(m.title, "Casablanca"), eq(m.yr, 1942))),
+  map((m) => ({
     movie_id: m.id,
-  }));
-
-const query = casting
-  .join(casablanca, (c, m) => c.movieid.eq(m.movie_id))
-  .join(actor, (c, a) => c.actorid.eq(a.id))
-  .select((c) => ({
+  })),
+);
+const query = pipe(
+  casting,
+  join(
+    casablanca,
+    inner((c, m) => eq(c.movieid, m.movie_id), dropOverlapRight()),
+  ),
+  join(
+    actor,
+    inner((c, a) => eq(c.actorid, a.id), dropOverlapRight()),
+  ),
+  map((c) => ({
     name: c.name,
-  }));
-
+  })),
+);
 query;`;
-
 const movie = table("movie", {
   id: t.int(),
   title: t.string(),
   yr: t.int(),
 });
-
 const casting = table("casting", {
   movieid: t.int(),
   actorid: t.int(),
 });
-
 const actor = table("actor", {
   id: t.int(),
   name: t.string(),
 });
-
-const casablanca = movie
-  .filter((m) => m.title.eq("Casablanca").and(m.yr.eq(1942)))
-  .select((m) => ({
+const casablanca = pipe(
+  movie,
+  filter((m) => and(eq(m.title, "Casablanca"), eq(m.yr, 1942))),
+  map((m) => ({
     movie_id: m.id,
-  }));
-
-export const query = casting
-  .join(casablanca, (c, m) => c.movieid.eq(m.movie_id))
-  .join(actor, (c, a) => c.actorid.eq(a.id))
-  .select((c) => ({
+  })),
+);
+export const query = pipe(
+  casting,
+  join(
+    casablanca,
+    inner((c, m) => eq(c.movieid, m.movie_id), dropOverlapRight()),
+  ),
+  join(
+    actor,
+    inner((c, a) => eq(c.actorid, a.id), dropOverlapRight()),
+  ),
+  map((c) => ({
     name: c.name,
-  }));
+  })),
+);

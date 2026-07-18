@@ -20,12 +20,20 @@
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   margin: 0;
   font-family: "Source Sans 3", "Segoe UI", sans-serif;
   color: var(--ink);
   background: radial-gradient(circle at top left, #fffaf2 0%, var(--bg) 45%, var(--bg-accent) 100%);
-  min-height: 100vh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
 }
 
 .site-header {
@@ -84,6 +92,8 @@ body {
   grid-template-columns: minmax(200px, 260px) 1fr;
   gap: 28px;
   padding: 0 6vw 48px;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .sidebar {
@@ -91,10 +101,12 @@ body {
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-lg);
   padding: 18px;
-  height: fit-content;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
   box-shadow: var(--shadow);
-  position: sticky;
-  top: 20px;
 }
 
 #nav {
@@ -168,6 +180,10 @@ body {
   display: flex;
   flex-direction: column;
   gap: 18px;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  scrollbar-gutter: stable;
 }
 
 .section {
@@ -247,6 +263,7 @@ body {
   border: 1px solid var(--panel-border);
   border-radius: var(--radius-md);
   padding: 12px;
+  min-width: 0;
 }
 
 .output-title {
@@ -261,6 +278,8 @@ body {
   height: 320px;
   border-radius: var(--radius-sm);
   overflow: hidden;
+  min-width: 0;
+  width: 100%;
 }
 
 .code-block {
@@ -321,6 +340,17 @@ body {
 }
 
 @media (max-width: 980px) {
+  html,
+  body {
+    height: auto;
+  }
+
+  body {
+    display: block;
+    min-height: 100vh;
+    overflow: auto;
+  }
+
   .site-header {
     flex-direction: column;
     align-items: flex-start;
@@ -328,9 +358,16 @@ body {
 
   .layout {
     grid-template-columns: 1fr;
+    min-height: auto;
+    overflow: visible;
   }
 
-  .sidebar {
-    position: static;
+  .sidebar,
+  .content {
+    height: auto;
+    min-height: auto;
+    overflow: visible;
+    overscroll-behavior: auto;
+    scrollbar-gutter: auto;
   }
 }

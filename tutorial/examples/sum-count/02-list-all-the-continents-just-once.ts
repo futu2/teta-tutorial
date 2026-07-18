@@ -1,19 +1,20 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import { fold, group, pipe, t, table } from "@teta/teta";
+export const code = `import { fold, group, pipe, t, table } from "@teta/teta";
 const world = table("world", {
   continent: t.string(),
 });
-
-const query = world.aggregate((w) => ({
-  continent: w.continent.group(),
-}));
-
+const query = pipe(
+  world,
+  fold((w) => ({
+    continent: group(w.continent),
+  })),
+);
 query;`;
-
-export const query = table("world", {
-  continent: t.string(),
-}).aggregate((w) => ({
-  continent: w.continent.group(),
-}));
+export const query = pipe(
+  table("world", {
+    continent: t.string(),
+  }),
+  fold((w) => ({
+    continent: group(w.continent),
+  })),
+);

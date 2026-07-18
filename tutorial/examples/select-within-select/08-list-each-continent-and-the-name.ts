@@ -1,43 +1,79 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import {
+  and,
+  dropOverlapRight,
+  eq,
+  fold,
+  group,
+  inner,
+  join,
+  map,
+  min,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
+export const code = `import {
+  and,
+  dropOverlapRight,
+  eq,
+  fold,
+  group,
+  inner,
+  join,
+  map,
+  min,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
 const world = table("world", {
   name: t.string(),
   continent: t.string(),
 });
-
-const minName = world.aggregate((w) => ({
-  continent: w.continent.group(),
-  first_name: w.name.min(),
-}));
-
-const query = world
-  .join(minName, (w, m) =>
-    w.continent.eq(m.continent).and(w.name.eq(m.first_name))
-  )
-  .select((w) => ({
+const minName = pipe(
+  world,
+  fold((w) => ({
+    continent: group(w.continent),
+    first_name: min(w.name),
+  })),
+);
+const query = pipe(
+  world,
+  join(
+    minName,
+    inner(
+      (w, m) => and(eq(w.continent, m.continent), eq(w.name, m.first_name)),
+      dropOverlapRight(),
+    ),
+  ),
+  map((w) => ({
     continent: w.continent,
     name: w.name,
-  }));
-
+  })),
+);
 query;`;
-
 const world = table("world", {
   name: t.string(),
   continent: t.string(),
 });
-
-const minName = world.aggregate((w) => ({
-  continent: w.continent.group(),
-  first_name: w.name.min(),
-}));
-
-export const query = world
-  .join(minName, (w, m) =>
-    w.continent.eq(m.continent).and(w.name.eq(m.first_name))
-  )
-  .select((w) => ({
+const minName = pipe(
+  world,
+  fold((w) => ({
+    continent: group(w.continent),
+    first_name: min(w.name),
+  })),
+);
+export const query = pipe(
+  world,
+  join(
+    minName,
+    inner(
+      (w, m) => and(eq(w.continent, m.continent), eq(w.name, m.first_name)),
+      dropOverlapRight(),
+    ),
+  ),
+  map((w) => ({
     continent: w.continent,
     name: w.name,
-  }));
+  })),
+);

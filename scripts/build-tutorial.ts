@@ -1,89 +1,90 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import { toSql } from "@teta/teta";
 import tutorial from "../tutorial/outline.ts";
 
 const ROOT = process.cwd();
 const OUTPUT_PATH = path.join(ROOT, "public", "tutorial.json");
 const STATIC_SRC = path.join(ROOT, "static");
 const STATIC_DEST = path.join(ROOT, "public");
-const MONACO_SRC = path.join(ROOT, "node_modules", "monaco-editor", "min", "vs");
+const MONACO_SRC = path.join(
+  ROOT,
+  "node_modules",
+  "monaco-editor",
+  "min",
+  "vs",
+);
 const MONACO_DEST = path.join(ROOT, "public", "monaco", "vs");
 const DUCKDB_SRC = path.join(
   ROOT,
   "node_modules",
   "@duckdb",
   "duckdb-wasm",
-  "dist"
+  "dist",
 );
 const DUCKDB_DEST = path.join(ROOT, "public", "duckdb");
 const TETA_TYPES_PATH = path.join(ROOT, "public", "teta.d.ts");
 
 const TETA_TYPES = `declare module "@teta/teta" {
-  export type Dialect = "Postgresql" | "Mysql" | "Sqlite" | "Mssql";
+  export type Dialect = "postgresql" | "mysql" | "sqlite" | "mssql";
   export type SqlFormat = "compact" | "pretty";
-
   export type Expr<T = any> = any;
+  export type QueryColumns = Record<string, any>;
+  export type Query<T extends QueryColumns = QueryColumns> = { columns: T };
+  export type QueryStep<T extends QueryColumns = QueryColumns, U extends QueryColumns = T> = (query: Query<T>) => Query<U>;
+  export type ColumnRefs<T extends QueryColumns = QueryColumns> = T;
 
-  export interface Query<T = any> {
-    select<U>(fn: (row: T) => U): Query<U>;
-    aggregate<U>(fn: (row: T) => U): Query<U>;
-    filter(fn: (row: T) => any): Query<T>;
-    orderBy(fn: (row: T) => any): Query<T>;
-    limit(count: number): Query<T>;
-    join<TRight>(
-      right: Query<TRight>,
-      on: (left: T, right: TRight) => any,
-      joinType?: "inner" | "left" | "right" | "full" | "INNER" | "LEFT" | "RIGHT" | "FULL"
-    ): Query<T & TRight>;
-    innerJoin<TRight>(
-      right: Query<TRight>,
-      on: (left: T, right: TRight) => any
-    ): Query<T & TRight>;
-    leftJoin<TRight>(
-      right: Query<TRight>,
-      on: (left: T, right: TRight) => any
-    ): Query<T & TRight>;
-    rightJoin<TRight>(
-      right: Query<TRight>,
-      on: (left: T, right: TRight) => any
-    ): Query<T & TRight>;
-    fullJoin<TRight>(
-      right: Query<TRight>,
-      on: (left: T, right: TRight) => any
-    ): Query<T & TRight>;
-    union(right: Query<T>): Query<T>;
-    unionAll(right: Query<T>): Query<T>;
-    toSql(dialect?: Dialect, format?: SqlFormat): string;
-  }
-
-  export function table<T extends Record<string, any>>(
-    name: string,
-    shape?: T
-  ): Query<T>;
-
+  export function table<T extends QueryColumns>(name: string, shape: Record<string, any>): Query<T>;
   export const t: {
-    int(): any;
-    float(): any;
-    string(): any;
-    boolean(): any;
-    date(): any;
-    timestamp(): any;
+    int(): any; float(): any; string(): any; boolean(): any; date(): any; timestamp(): any;
   };
+  export function pipe<T extends QueryColumns>(query: Query<T>, ...steps: Array<QueryStep<any, any>>): Query<any>;
+  export function map<T extends QueryColumns>(selector: (row: ColumnRefs<T>) => Record<string, any>): QueryStep<T, QueryColumns>;
+  export function fold<T extends QueryColumns>(selector: (row: ColumnRefs<T>) => Record<string, any>): QueryStep<T, QueryColumns>;
+  export function filter<T extends QueryColumns>(predicate: (row: ColumnRefs<T>) => any): QueryStep<T, T>;
+  export function sort<T extends QueryColumns>(selector: (row: ColumnRefs<T>) => any): QueryStep<T, T>;
+  export type JoinSpec = { type: "inner" | "left" | "right" | "full"; on: (left: any, right: any) => any; select?: any };
+  export function inner(on: (left: any, right: any) => any, select?: any): JoinSpec;
+  export function left(on: (left: any, right: any) => any, select?: any): JoinSpec;
+  export function right(on: (left: any, right: any) => any, select?: any): JoinSpec;
+  export function full(on: (left: any, right: any) => any, select?: any): JoinSpec;
+  export function join(right: Query<any>, spec: JoinSpec): QueryStep<any, any>;
+  export function dropOverlapRight(): any;
 
-  export const fn: (...args: any[]) => any;
-  export const windowFn: (...args: any[]) => any;
-  export function when(condition: any, value: any): any;
-  export function lit<T>(value: T): any;
-  export function f(strings: TemplateStringsArray, ...exprs: any[]): any;
-  export function currentDate(): any;
-  export function currentTimestamp(): any;
-  export function dateLiteral(value: string): any;
-  export function timestampLiteral(value: string): any;
-  export function loop<T extends Record<string, any>>(
-    schema: T,
-    builder: (self: Query<T>) => { base: Query<T>; step: Query<T> }
-  ): Query<T>;
+  export function eq(left: any, right: any): Expr;
+  export function ne(left: any, right: any): Expr;
+  export function gt(left: any, right: any): Expr;
+  export function gte(left: any, right: any): Expr;
+  export function lt(left: any, right: any): Expr;
+  export function lte(left: any, right: any): Expr;
+  export function like(left: any, right: any): Expr;
+  export function and(...values: any[]): Expr;
+  export function or(...values: any[]): Expr;
+  export function not(value: any): Expr;
+  export function isNull(value: any): Expr;
+  export function isNotNull(value: any): Expr;
+  export function add(left: any, right: any): Expr;
+  export function sub(left: any, right: any): Expr;
+  export function mul(left: any, right: any): Expr;
+  export function div(left: any, right: any): Expr;
+  export function group(value: any): Expr;
+  export function count(value: any): Expr;
+  export function sum(value: any): Expr;
+  export function min(value: any): Expr;
+  export function max(value: any): Expr;
+  export function asc(value: any): any;
+  export function desc(value: any): any;
+  export function concat(value: any, ...parts: any[]): Expr;
+  export function replace(value: any, search: any, replacement: any): Expr;
+  export function substring(value: any, start: any, length?: any): Expr;
+  export function charLength(value: any): Expr;
+  export function coalesce(value: any, ...fallbacks: any[]): Expr;
+  export function cast<T = unknown>(value: any, target: string): Expr<T>;
+  export function round(value: any, scale?: any): Expr;
+  export function when(...args: any[]): Expr;
+  export function lit<T>(value: T): Expr<T>;
+  export function toSql(query: Query<any>, options: { dialect: Dialect; format?: SqlFormat }): string;
 }
 `;
 
@@ -103,7 +104,7 @@ type SectionOutput = {
 
 type TutorialOutput = {
   title: string;
-  dialect: "Postgresql";
+  dialect: "postgresql";
   sections: SectionOutput[];
 };
 
@@ -154,11 +155,10 @@ async function buildTutorial() {
         throw new Error(`Example ${example.file} must export code and query.`);
       }
 
-      if (typeof mod.query.toSql !== "function") {
-        throw new Error(`Example ${example.file} query does not support toSql.`);
-      }
-
-      const sql = mod.query.toSql(tutorial.dialect, "pretty");
+      const sql = toSql(mod.query, {
+        dialect: tutorial.dialect,
+        format: "pretty",
+      });
 
       examples.push({
         id: example.id,

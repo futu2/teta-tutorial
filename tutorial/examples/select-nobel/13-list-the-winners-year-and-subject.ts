@@ -1,33 +1,32 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import { asc, desc, filter, like, map, pipe, sort, t, table } from "@teta/teta";
+export const code = `import { asc, desc, filter, like, map, pipe, sort, t, table } from "@teta/teta";
 const nobel = table("nobel", {
   yr: t.int(),
   subject: t.string(),
   winner: t.string(),
 });
-
-const query = nobel
-  .filter((n) => n.winner.like("Sir%"))
-  .select((n) => ({
+const query = pipe(
+  nobel,
+  filter((n) => like(n.winner, "Sir%")),
+  map((n) => ({
     winner: n.winner,
     yr: n.yr,
     subject: n.subject,
-  }))
-  .orderBy((n) => [n.yr.desc(), n.winner.asc()]);
-
+  })),
+  sort((n) => [desc(n.yr), asc(n.winner)]),
+);
 query;`;
-
-export const query = table("nobel", {
-  yr: t.int(),
-  subject: t.string(),
-  winner: t.string(),
-})
-  .filter((n) => n.winner.like("Sir%"))
-  .select((n) => ({
+export const query = pipe(
+  table("nobel", {
+    yr: t.int(),
+    subject: t.string(),
+    winner: t.string(),
+  }),
+  filter((n) => like(n.winner, "Sir%")),
+  map((n) => ({
     winner: n.winner,
     yr: n.yr,
     subject: n.subject,
-  }))
-  .orderBy((n) => [n.yr.desc(), n.winner.asc()]);
+  })),
+  sort((n) => [desc(n.yr), asc(n.winner)]),
+);

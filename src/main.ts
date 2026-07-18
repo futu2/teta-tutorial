@@ -19,7 +19,7 @@ type Section = {
 
 type TutorialData = {
   title: string;
-  dialect: "Postgresql";
+  dialect: "postgresql";
   sections: Section[];
 };
 
@@ -53,7 +53,7 @@ type ExamplePlaygroundRefs = {
   statusEl: HTMLElement;
 };
 
-const DIALECT = "Postgresql" as const;
+const DIALECT = "postgresql" as const;
 
 const DATASETS = [
   { name: "world", file: "./data/world.csv" },
@@ -66,7 +66,7 @@ const DATASETS = [
   { name: "casting", file: "./data/casting.csv" },
   { name: "teacher", file: "./data/teacher.csv" },
   { name: "dept", file: "./data/dept.csv" },
-  { name: "stop", file: "./data/stop.csv" },
+  { name: "stops", file: "./data/stop.csv" },
   { name: "route", file: "./data/route.csv" },
 ];
 
@@ -93,7 +93,7 @@ function escapeHtml(value: string) {
 function colorizeCodeBlock(
   monaco: MonacoModule | null,
   element: HTMLElement,
-  language: string
+  language: string,
 ) {
   if (!monaco) {
     return;
@@ -112,7 +112,7 @@ async function configureMonaco(monaco: MonacoModule) {
   const tetaTypes = await fetch("./teta.d.ts").then((res) => res.text());
   monaco.languages.typescript.typescriptDefaults.addExtraLib(
     tetaTypes,
-    "file:///node_modules/@teta/teta/index.d.ts"
+    "file:///node_modules/@teta/teta/index.d.ts",
   );
 
   monaco.languages.typescript.typescriptDefaults.setEagerModelSync(true);
@@ -292,7 +292,10 @@ function renderTutorial(data: TutorialData, monaco: MonacoModule | null) {
     }
 
     for (const link of nav.querySelectorAll("a")) {
-      link.classList.toggle("active", link.getAttribute("href") === `#${entry.id}`);
+      link.classList.toggle(
+        "active",
+        link.getAttribute("href") === `#${entry.id}`,
+      );
     }
     for (const [sectionId, group] of navGroups.entries()) {
       group.classList.toggle("open", sectionId === entry.sectionId);
@@ -345,7 +348,7 @@ function renderTutorial(data: TutorialData, monaco: MonacoModule | null) {
 
   selectExample(window.location.hash.slice(1) || null);
   window.addEventListener("hashchange", () =>
-    selectExample(window.location.hash.slice(1))
+    selectExample(window.location.hash.slice(1)),
   );
 }
 
@@ -354,18 +357,26 @@ function prepareUserCode(code: string) {
 
   cleaned = cleaned.replace(/^[\t ]*import[^;]*;?\n?/gm, "");
   cleaned = cleaned.replace(/^[\t ]*export\s+default\s+/gm, "const query = ");
-  cleaned = cleaned.replace(/^[\t ]*export\s+const\s+query\s*=/gm, "const query =");
+  cleaned = cleaned.replace(
+    /^[\t ]*export\s+const\s+query\s*=/gm,
+    "const query =",
+  );
   cleaned = cleaned.replace(/^[\t ]*export\s+/gm, "");
 
   return cleaned;
 }
 
 function executeCode(compiled: string) {
-  const runtimeGlobals = `const teta = __teta;\nconst { table, t, fn, windowFn, when, f, lit, currentDate, currentTimestamp, dateLiteral, timestampLiteral, loop } = __teta;`;
+  const runtimeGlobals = `const teta = __teta;\nconst {
+    add, and, asc, cast, charLength, coalesce, concat, count, desc, div, eq,
+    dropOverlapRight, filter, fold, full, group, gt, gte, inner, isNotNull, isNull, join, left, like, lit,
+    lt, lte, map, max, min, mul, ne, not, or, pipe, replace, right, round,
+    sort, sub, substring, sum, table, t, when
+  } = __teta;`;
 
   const runner = new Function(
     "__teta",
-    `"use strict";\n${runtimeGlobals}\n${compiled}\nreturn typeof query !== "undefined" ? query : undefined;`
+    `"use strict";\n${runtimeGlobals}\n${compiled}\nreturn typeof query !== "undefined" ? query : undefined;`,
   );
 
   const result = runner(Teta as unknown as Record<string, unknown>);
@@ -374,14 +385,14 @@ function executeCode(compiled: string) {
     throw new Error("No query was produced. Assign a Query to `query`.");
   }
 
-  if (typeof (result as { toSql?: unknown }).toSql !== "function") {
-    throw new Error("The value in `query` does not support toSql().");
+  if (typeof Teta.toSql !== "function") {
+    throw new Error("Teta's toSql() renderer is unavailable.");
   }
 
-  return (result as { toSql: (dialect: string, format: string) => string }).toSql(
-    DIALECT,
-    "pretty"
-  );
+  return Teta.toSql(result as Teta.Query<Teta.QueryColumns>, {
+    dialect: DIALECT,
+    format: "pretty",
+  });
 }
 
 function setDuckDbStatus(message: string) {
@@ -404,7 +415,7 @@ async function loadCsvTable(
   db: duckdb.AsyncDuckDB,
   conn: duckdb.AsyncDuckDBConnection,
   name: string,
-  file: string
+  file: string,
 ) {
   const res = await fetch(file);
   if (!res.ok) {
@@ -416,7 +427,7 @@ async function loadCsvTable(
   const fileName = `${name}.csv`;
   await db.registerFileText(fileName, text);
   await conn.query(
-    `CREATE OR REPLACE TABLE ${name} AS SELECT * FROM read_csv_auto('${fileName}', HEADER=true);`
+    `CREATE OR REPLACE TABLE ${name} AS SELECT * FROM read_csv_auto('${fileName}', HEADER=true);`,
   );
   return true;
 }
@@ -430,24 +441,32 @@ async function initDuckDb(): Promise<DuckDbHandle> {
       mainModule: new URL("./duckdb/duckdb-mvp.wasm", base).toString(),
       mainWorker: new URL(
         "./duckdb/duckdb-browser-mvp.worker.js",
-        base
+        base,
       ).toString(),
     },
     eh: {
       mainModule: new URL("./duckdb/duckdb-eh.wasm", base).toString(),
       mainWorker: new URL(
         "./duckdb/duckdb-browser-eh.worker.js",
-        base
+        base,
       ).toString(),
     },
   };
 
+  const fallbackBundle: duckdb.DuckDBBundle = {
+    mainModule: bundles.mvp.mainModule,
+    mainWorker: bundles.mvp.mainWorker,
+    pthreadWorker: null,
+  };
+
   let bundle = await duckdb.selectBundle(bundles);
   if (!bundle) {
-    bundle = bundles.mvp;
+    bundle = fallbackBundle;
   }
   if (!bundle.mainWorker || !bundle.mainModule) {
-    throw new Error("DuckDB bundle assets missing. Run build to copy duckdb files.");
+    throw new Error(
+      "DuckDB bundle assets missing. Run build to copy duckdb files.",
+    );
   }
   const worker = new Worker(bundle.mainWorker);
   const logger = new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING);
@@ -467,7 +486,7 @@ async function initDuckDb(): Promise<DuckDbHandle> {
   setDuckDbStatus(
     loadedCount > 0
       ? `Ready (${loadedCount} tables loaded)`
-      : "Ready (no datasets found)"
+      : "Ready (no datasets found)",
   );
 
   return { db, conn };
@@ -475,21 +494,29 @@ async function initDuckDb(): Promise<DuckDbHandle> {
 
 function renderResults(
   rows: Array<Record<string, unknown>>,
-  resultsEl: HTMLElement
+  resultsEl: HTMLElement,
 ) {
   if (rows.length === 0) {
-    resultsEl.innerHTML = "<div class=\"output-error\">No rows returned.</div>";
+    resultsEl.innerHTML = '<div class="output-error">No rows returned.</div>';
     return;
   }
 
-  const columns = Object.keys(rows[0]);
-  const headerCells = columns.map((col) => `<th>${escapeHtml(col)}</th>`).join("");
+  const firstRow = rows[0];
+  if (!firstRow) {
+    resultsEl.innerHTML = '<div class="output-error">No rows returned.</div>';
+    return;
+  }
+  const columns = Object.keys(firstRow);
+  const headerCells = columns
+    .map((col) => `<th>${escapeHtml(col)}</th>`)
+    .join("");
   const bodyRows = rows
     .map((row) => {
       const cells = columns
         .map((col) => {
           const value = row[col];
-          const text = value === null || value === undefined ? "" : String(value);
+          const text =
+            value === null || value === undefined ? "" : String(value);
           return `<td>${escapeHtml(text)}</td>`;
         })
         .join("");
@@ -512,7 +539,7 @@ function renderResults(
 async function runDuckDbQuery(
   sql: string,
   resultsEl: HTMLElement,
-  errorEl: HTMLElement
+  errorEl: HTMLElement,
 ) {
   if (!duckdbHandle) {
     duckdbHandle = await initDuckDb();
@@ -533,7 +560,7 @@ async function runDuckDbQuery(
 function setupExamplePlayground(
   monaco: MonacoModule,
   example: Example,
-  refs: ExamplePlaygroundRefs
+  refs: ExamplePlaygroundRefs,
 ) {
   const {
     editorHost,
@@ -550,12 +577,12 @@ function setupExamplePlayground(
   const editorModel = monaco.editor.createModel(
     example.code,
     "typescript",
-    monaco.Uri.parse(`inmemory://model/${safeId}.ts`)
+    monaco.Uri.parse(`inmemory://model/${safeId}.ts`),
   );
   const workerModel = monaco.editor.createModel(
     "",
     "typescript",
-    monaco.Uri.parse(`inmemory://model/${safeId}-worker.ts`)
+    monaco.Uri.parse(`inmemory://model/${safeId}-worker.ts`),
   );
 
   const editor = monaco.editor.create(editorHost, {
@@ -564,7 +591,12 @@ function setupExamplePlayground(
     theme: "vs-dark",
     minimap: { enabled: false },
     fontSize: 13,
-    scrollbar: { vertical: "auto" },
+    wordWrap: "bounded",
+    wordWrapColumn: 84,
+    wrappingIndent: "indent",
+    wrappingStrategy: "advanced",
+    automaticLayout: true,
+    scrollbar: { vertical: "auto", horizontal: "hidden" },
   });
 
   let latestSql: string | null = null;
@@ -588,7 +620,7 @@ function setupExamplePlayground(
       }
 
       const jsOutput = emit.outputFiles.find((file) =>
-        file.name.endsWith(".js")
+        file.name.endsWith(".js"),
       );
 
       if (!jsOutput) {
@@ -622,14 +654,14 @@ function setupExamplePlayground(
     () => {
       void runTs();
     },
-    { signal: controller.signal }
+    { signal: controller.signal },
   );
   runSqlButton.addEventListener(
     "click",
     () => {
       void runSql();
     },
-    { signal: controller.signal }
+    { signal: controller.signal },
   );
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
     void runTs();

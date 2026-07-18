@@ -1,27 +1,26 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import { and, eq, filter, map, pipe, t, table } from "@teta/teta";
+export const code = `import { and, eq, filter, map, pipe, t, table } from "@teta/teta";
 const movie = table("movie", {
   id: t.int(),
   title: t.string(),
   yr: t.int(),
 });
-
-const query = movie
-  .filter((m) => m.title.eq("Casablanca").and(m.yr.eq(1942)))
-  .select((m) => ({
+const query = pipe(
+  movie,
+  filter((m) => and(eq(m.title, "Casablanca"), eq(m.yr, 1942))),
+  map((m) => ({
     id: m.id,
-  }));
-
+  })),
+);
 query;`;
-
-export const query = table("movie", {
-  id: t.int(),
-  title: t.string(),
-  yr: t.int(),
-})
-  .filter((m) => m.title.eq("Casablanca").and(m.yr.eq(1942)))
-  .select((m) => ({
+export const query = pipe(
+  table("movie", {
+    id: t.int(),
+    title: t.string(),
+    yr: t.int(),
+  }),
+  filter((m) => and(eq(m.title, "Casablanca"), eq(m.yr, 1942))),
+  map((m) => ({
     id: m.id,
-  }));
+  })),
+);

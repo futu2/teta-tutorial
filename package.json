@@ -16,7 +16,7 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@teta/teta": "npm:@jsr/teta__teta",
+    "@teta/teta": "npm:@jsr/teta__teta@0.5.1",
     "@duckdb/duckdb-wasm": "^1.29.6",
     "monaco-editor": "^0.52.0"
   }

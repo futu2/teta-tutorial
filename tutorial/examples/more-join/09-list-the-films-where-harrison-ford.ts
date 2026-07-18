@@ -1,53 +1,83 @@
-import { table, t } from "@teta/teta";
-
-export const code = `import { table, t } from "@teta/teta";
-
+import {
+  and,
+  dropOverlapRight,
+  eq,
+  filter,
+  inner,
+  join,
+  map,
+  ne,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
+export const code = `import {
+  and,
+  dropOverlapRight,
+  eq,
+  filter,
+  inner,
+  join,
+  map,
+  ne,
+  pipe,
+  t,
+  table,
+} from "@teta/teta";
 const movie = table("movie", {
   id: t.int(),
   title: t.string(),
 });
-
 const casting = table("casting", {
   movieid: t.int(),
   actorid: t.int(),
   ord: t.int(),
 });
-
 const actor = table("actor", {
   id: t.int(),
   name: t.string(),
 });
-
-const query = movie
-  .join(casting, (m, c) => m.id.eq(c.movieid))
-  .join(actor, (m, a) => m.actorid.eq(a.id))
-  .filter((m) => m.name.eq("Harrison Ford").and(m.ord.ne(1)))
-  .select((m) => ({
+const query = pipe(
+  movie,
+  join(
+    casting,
+    inner((m, c) => eq(m.id, c.movieid), dropOverlapRight()),
+  ),
+  join(
+    actor,
+    inner((m, a) => eq(m.actorid, a.id), dropOverlapRight()),
+  ),
+  filter((m) => and(eq(m.name, "Harrison Ford"), ne(m.ord, 1))),
+  map((m) => ({
     title: m.title,
-  }));
-
+  })),
+);
 query;`;
-
 const movie = table("movie", {
   id: t.int(),
   title: t.string(),
 });
-
 const casting = table("casting", {
   movieid: t.int(),
   actorid: t.int(),
   ord: t.int(),
 });
-
 const actor = table("actor", {
   id: t.int(),
   name: t.string(),
 });
-
-export const query = movie
-  .join(casting, (m, c) => m.id.eq(c.movieid))
-  .join(actor, (m, a) => m.actorid.eq(a.id))
-  .filter((m) => m.name.eq("Harrison Ford").and(m.ord.ne(1)))
-  .select((m) => ({
+export const query = pipe(
+  movie,
+  join(
+    casting,
+    inner((m, c) => eq(m.id, c.movieid), dropOverlapRight()),
+  ),
+  join(
+    actor,
+    inner((m, a) => eq(m.actorid, a.id), dropOverlapRight()),
+  ),
+  filter((m) => and(eq(m.name, "Harrison Ford"), ne(m.ord, 1))),
+  map((m) => ({
     title: m.title,
-  }));
+  })),
+);
