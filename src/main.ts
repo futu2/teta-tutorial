@@ -50,10 +50,13 @@ type ExamplePlaygroundRefs = {
   results: HTMLElement;
   runTsButton: HTMLButtonElement;
   runSqlButton: HTMLButtonElement;
+  resetButton: HTMLButtonElement;
+  copySqlButton: HTMLButtonElement;
   statusEl: HTMLElement;
 };
 
 const DIALECT = "postgresql" as const;
+const TUTORIAL_PROGRESS_KEY = "teta-tutorial-completed-examples";
 
 const DATASETS = [
   { name: "world", file: "./data/world.csv" },
@@ -74,6 +77,43 @@ let duckdbHandle: DuckDbHandle | null = null;
 let duckdbStatus = "DuckDB idle";
 const duckdbStatusListeners = new Set<(message: string) => void>();
 let monacoConfigured = false;
+
+function getCompletedExampleIds() {
+  try {
+    const stored = window.localStorage.getItem(TUTORIAL_PROGRESS_KEY);
+    if (!stored) {
+      return new Set<string>();
+    }
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) {
+      return new Set<string>();
+    }
+    return new Set(parsed.filter((id): id is string => typeof id === "string"));
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function saveCompletedExampleIds(completedExampleIds: Set<string>) {
+  try {
+    window.localStorage.setItem(
+      TUTORIAL_PROGRESS_KEY,
+      JSON.stringify([...completedExampleIds]),
+    );
+  } catch {
+    // Progress is nonessential, so the playground remains usable without storage.
+  }
+}
+
+function getStatusState(message: string) {
+  if (message.toLowerCase().includes("failed")) {
+    return "error";
+  }
+  if (message.startsWith("Ready")) {
+    return "ready";
+  }
+  return "loading";
+}
 
 async function loadTutorial(): Promise<TutorialData> {
   const res = await fetch("./tutorial.json");
@@ -131,6 +171,12 @@ async function configureMonaco(monaco: MonacoModule) {
 function renderTutorial(data: TutorialData, monaco: MonacoModule | null) {
   const nav = document.getElementById("nav");
   const content = document.getElementById("content");
+  const navSearch = document.getElementById(
+    "nav-search",
+  ) as HTMLInputElement | null;
+  const lessonProgress = document.getElementById("lesson-progress");
+  const lessonMenu = document.getElementById("lesson-menu");
+  const sidebar = nav?.closest(".sidebar");
 
   if (!nav || !content) {
     return;
@@ -148,6 +194,41 @@ function renderTutorial(data: TutorialData, monaco: MonacoModule | null) {
       });
     }
   }
+
+  const completedExampleIds = getCompletedExampleIds();
+  const navLinks = new Map<string, HTMLAnchorElement>();
+  const navGroups = new Map<string, HTMLDivElement>();
+  let activeDispose: (() => void) | null = null;
+
+  const updateProgress = () => {
+    const completedCount = flatSections.filter((entry) =>
+      completedExampleIds.has(entry.id),
+    ).length;
+    if (lessonProgress) {
+      lessonProgress.textContent = `${completedCount} of ${flatSections.length}`;
+    }
+    for (const [id, link] of navLinks) {
+      link.classList.toggle("completed", completedExampleIds.has(id));
+    }
+  };
+
+  const filterNavigation = () => {
+    const searchTerm = navSearch?.value.trim().toLocaleLowerCase() ?? "";
+    for (const group of navGroups.values()) {
+      let hasVisibleItem = false;
+      for (const link of group.querySelectorAll<HTMLAnchorElement>("a")) {
+        const matches =
+          !searchTerm ||
+          link.textContent?.toLocaleLowerCase().includes(searchTerm) === true;
+        link.classList.toggle("search-hidden", !matches);
+        hasVisibleItem ||= matches;
+      }
+      group.classList.toggle("search-hidden", !hasVisibleItem);
+      if (searchTerm && hasVisibleItem) {
+        group.classList.add("open");
+      }
+    }
+  };
 
   const buildExampleView = (entry: FlatSection) => {
     const sectionEl = document.createElement("section");
@@ -189,12 +270,18 @@ function renderTutorial(data: TutorialData, monaco: MonacoModule | null) {
     const runSqlButton = document.createElement("button");
     runSqlButton.type = "button";
     runSqlButton.className = "action-button primary";
-    runSqlButton.textContent = "Run SQL";
+    runSqlButton.textContent = "Run query";
+
+    const resetButton = document.createElement("button");
+    resetButton.type = "button";
+    resetButton.className = "action-button secondary";
+    resetButton.textContent = "Reset code";
+    resetButton.disabled = true;
 
     const statusEl = document.createElement("span");
     statusEl.className = "runner-status";
 
-    actions.append(runTsButton, runSqlButton, statusEl);
+    actions.append(runTsButton, runSqlButton, resetButton, statusEl);
     playgroundHeader.appendChild(actions);
     playground.appendChild(playgroundHeader);
 
@@ -218,7 +305,17 @@ function renderTutorial(data: TutorialData, monaco: MonacoModule | null) {
 
     const sqlTitle = document.createElement("div");
     sqlTitle.className = "output-title";
-    sqlTitle.textContent = "Generated SQL";
+
+    const sqlLabel = document.createElement("span");
+    sqlLabel.textContent = "Generated SQL";
+
+    const copySqlButton = document.createElement("button");
+    copySqlButton.type = "button";
+    copySqlButton.className = "action-button tertiary";
+    copySqlButton.textContent = "Copy SQL";
+    copySqlButton.disabled = true;
+
+    sqlTitle.append(sqlLabel, copySqlButton);
 
     const sqlOutput = document.createElement("pre");
     sqlOutput.className = "code-block";
@@ -259,13 +356,12 @@ function renderTutorial(data: TutorialData, monaco: MonacoModule | null) {
         results,
         runTsButton,
         runSqlButton,
+        resetButton,
+        copySqlButton,
         statusEl,
       },
     };
   };
-
-  const navGroups = new Map<string, HTMLDivElement>();
-  let activeDispose: (() => void) | null = null;
 
   const selectExample = (id: string | null) => {
     let entry = flatSections.find((flat) => flat.id === id) ?? null;
@@ -288,7 +384,19 @@ function renderTutorial(data: TutorialData, monaco: MonacoModule | null) {
     const view = buildExampleView(entry);
     content.appendChild(view.sectionEl);
     if (monaco) {
-      activeDispose = setupExamplePlayground(monaco, entry.example, view.refs);
+      activeDispose = setupExamplePlayground(
+        monaco,
+        entry.example,
+        view.refs,
+        () => {
+          if (completedExampleIds.has(entry.id)) {
+            return;
+          }
+          completedExampleIds.add(entry.id);
+          saveCompletedExampleIds(completedExampleIds);
+          updateProgress();
+        },
+      );
     }
 
     for (const link of nav.querySelectorAll("a")) {
@@ -298,7 +406,19 @@ function renderTutorial(data: TutorialData, monaco: MonacoModule | null) {
       );
     }
     for (const [sectionId, group] of navGroups.entries()) {
-      group.classList.toggle("open", sectionId === entry.sectionId);
+      const isOpen = sectionId === entry.sectionId;
+      group.classList.toggle("open", isOpen);
+      group.querySelector(".nav-title")?.setAttribute(
+        "aria-expanded",
+        String(isOpen),
+      );
+    }
+    if (window.matchMedia("(max-width: 980px)").matches) {
+      sidebar?.classList.remove("menu-open");
+      lessonMenu?.setAttribute("aria-expanded", "false");
+      if (lessonMenu) {
+        lessonMenu.textContent = "Browse";
+      }
     }
     if (window.location.hash !== `#${entry.id}`) {
       history.replaceState(null, "", `#${entry.id}`);
@@ -317,8 +437,10 @@ function renderTutorial(data: TutorialData, monaco: MonacoModule | null) {
     label.type = "button";
     label.className = "nav-title";
     label.textContent = section.title;
+    label.setAttribute("aria-expanded", "false");
     label.addEventListener("click", () => {
-      group.classList.toggle("open");
+      const isOpen = group.classList.toggle("open");
+      label.setAttribute("aria-expanded", String(isOpen));
     });
     group.appendChild(label);
 
@@ -330,6 +452,7 @@ function renderTutorial(data: TutorialData, monaco: MonacoModule | null) {
       const link = document.createElement("a");
       link.href = `#${flatId}`;
       link.textContent = example.title;
+      navLinks.set(flatId, link);
       link.addEventListener("click", (event) => {
         event.preventDefault();
         if (window.location.hash === `#${flatId}`) {
@@ -346,6 +469,13 @@ function renderTutorial(data: TutorialData, monaco: MonacoModule | null) {
     navGroups.set(section.id, group);
   }
 
+  navSearch?.addEventListener("input", filterNavigation);
+  lessonMenu?.addEventListener("click", () => {
+    const isOpen = sidebar?.classList.toggle("menu-open") ?? false;
+    lessonMenu.setAttribute("aria-expanded", String(isOpen));
+    lessonMenu.textContent = isOpen ? "Close" : "Browse";
+  });
+  updateProgress();
   selectExample(window.location.hash.slice(1) || null);
   window.addEventListener("hashchange", () =>
     selectExample(window.location.hash.slice(1)),
@@ -405,6 +535,7 @@ function setDuckDbStatus(message: string) {
 function registerDuckDbStatus(element: HTMLElement) {
   const listener = (message: string) => {
     element.textContent = message;
+    element.dataset.state = getStatusState(message);
   };
   listener(duckdbStatus);
   duckdbStatusListeners.add(listener);
@@ -541,19 +672,20 @@ async function runDuckDbQuery(
   resultsEl: HTMLElement,
   errorEl: HTMLElement,
 ) {
-  if (!duckdbHandle) {
-    duckdbHandle = await initDuckDb();
-  }
-
-  errorEl.textContent = "";
-  resultsEl.innerHTML = "";
-
   try {
+    if (!duckdbHandle) {
+      duckdbHandle = await initDuckDb();
+    }
+
+    errorEl.textContent = "";
+    resultsEl.innerHTML = "";
     const result = await duckdbHandle.conn.query(sql);
     const rows = result.toArray() as Array<Record<string, unknown>>;
     renderResults(rows, resultsEl);
+    return true;
   } catch (err) {
     errorEl.textContent = err instanceof Error ? err.message : String(err);
+    return false;
   }
 }
 
@@ -561,6 +693,7 @@ function setupExamplePlayground(
   monaco: MonacoModule,
   example: Example,
   refs: ExamplePlaygroundRefs,
+  onCompleted: () => void,
 ) {
   const {
     editorHost,
@@ -570,6 +703,8 @@ function setupExamplePlayground(
     results,
     runTsButton,
     runSqlButton,
+    resetButton,
+    copySqlButton,
     statusEl,
   } = refs;
 
@@ -600,12 +735,15 @@ function setupExamplePlayground(
   });
 
   let latestSql: string | null = null;
+  let executionInProgress = false;
+  let copyResetTimeout: number | undefined;
   const clearStatus = registerDuckDbStatus(statusEl);
   const controller = new AbortController();
 
-  const runTs = async () => {
+  const generateSql = async () => {
     tsError.textContent = "";
     sqlOutput.textContent = "";
+    copySqlButton.disabled = true;
 
     try {
       const cleaned = prepareUserCode(editor.getValue());
@@ -631,6 +769,7 @@ function setupExamplePlayground(
       latestSql = sql;
       sqlOutput.textContent = sql;
       colorizeCodeBlock(monaco, sqlOutput, "sql");
+      copySqlButton.disabled = false;
       return sql;
     } catch (err) {
       latestSql = null;
@@ -639,14 +778,54 @@ function setupExamplePlayground(
     }
   };
 
+  const setExecutionState = (
+    isRunning: boolean,
+    action: "generate" | "query",
+  ) => {
+    runTsButton.disabled = isRunning;
+    runSqlButton.disabled = isRunning;
+    resetButton.disabled = isRunning || editor.getValue() === example.code;
+    runTsButton.textContent =
+      isRunning && action === "generate" ? "Generating..." : "Generate SQL";
+    runSqlButton.textContent =
+      isRunning && action === "query" ? "Running..." : "Run query";
+  };
+
+  const runTs = async () => {
+    if (executionInProgress) {
+      return null;
+    }
+    executionInProgress = true;
+    setExecutionState(true, "generate");
+    try {
+      return await generateSql();
+    } finally {
+      executionInProgress = false;
+      setExecutionState(false, "generate");
+    }
+  };
+
   const runSql = async () => {
-    runnerError.textContent = "";
-    const sql = await runTs();
-    if (!sql) {
-      runnerError.textContent = "No SQL available to run.";
+    if (executionInProgress) {
       return;
     }
-    await runDuckDbQuery(sql, results, runnerError);
+    executionInProgress = true;
+    setExecutionState(true, "query");
+    runnerError.textContent = "";
+    try {
+      const sql = await generateSql();
+      if (!sql) {
+        runnerError.textContent = "No SQL available to run.";
+        return;
+      }
+      const didRun = await runDuckDbQuery(sql, results, runnerError);
+      if (didRun) {
+        onCompleted();
+      }
+    } finally {
+      executionInProgress = false;
+      setExecutionState(false, "query");
+    }
   };
 
   runTsButton.addEventListener(
@@ -663,14 +842,54 @@ function setupExamplePlayground(
     },
     { signal: controller.signal },
   );
+  resetButton.addEventListener(
+    "click",
+    () => {
+      editor.setValue(example.code);
+      tsError.textContent = "";
+      runnerError.textContent = "";
+      results.innerHTML = "";
+      resetButton.disabled = true;
+      void runTs();
+    },
+    { signal: controller.signal },
+  );
+  copySqlButton.addEventListener(
+    "click",
+    () => {
+      if (!latestSql) {
+        return;
+      }
+      void navigator.clipboard.writeText(latestSql).then(
+        () => {
+          copySqlButton.textContent = "Copied";
+          copyResetTimeout = window.setTimeout(() => {
+            copySqlButton.textContent = "Copy SQL";
+          }, 1600);
+        },
+        () => {
+          tsError.textContent = "Could not copy SQL to the clipboard.";
+        },
+      );
+    },
+    { signal: controller.signal },
+  );
+  editor.onDidChangeModelContent(() => {
+    if (!executionInProgress) {
+      resetButton.disabled = editor.getValue() === example.code;
+    }
+  });
   editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
     void runTs();
   });
 
-  void runTs();
+  void generateSql();
 
   return () => {
     controller.abort();
+    if (copyResetTimeout !== undefined) {
+      window.clearTimeout(copyResetTimeout);
+    }
     clearStatus();
     editor.dispose();
     editorModel.dispose();

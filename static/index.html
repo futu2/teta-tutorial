@@ -13,18 +13,42 @@
   <body>
     <header class="site-header">
       <div class="brand">
-        <span class="brand-eyebrow">Teta 0.5.1</span>
-        <h1>Teta SQL EDSL Tutorial</h1>
-        <p>Build typed SQL with composable TypeScript query steps.</p>
+        <span class="brand-mark" aria-hidden="true">T</span>
+        <div>
+          <h1>Teta Playground</h1>
+          <p>TypeScript queries, rendered as executable SQL.</p>
+        </div>
       </div>
-      <div class="status-card">
-        <span class="status-label">DuckDB WASM</span>
+      <div class="status-card" aria-live="polite">
+        <span class="status-label">Query engine</span>
         <span id="duckdb-status" class="runner-status">Loading DuckDB...</span>
       </div>
     </header>
 
     <main class="layout">
-      <aside class="sidebar">
+      <aside class="sidebar" aria-label="Tutorial lessons">
+        <div class="sidebar-heading">
+          <span>Lessons</span>
+          <span id="lesson-progress" class="lesson-progress">0 complete</span>
+          <button
+            id="lesson-menu"
+            class="lesson-menu"
+            type="button"
+            aria-expanded="false"
+            aria-controls="nav-tools nav"
+          >
+            Browse
+          </button>
+        </div>
+        <div id="nav-tools" class="nav-tools">
+          <label class="search-label" for="nav-search">Find a lesson</label>
+          <input
+            id="nav-search"
+            type="search"
+            placeholder="Search lessons"
+            autocomplete="off"
+          />
+        </div>
         <nav id="nav"></nav>
       </aside>
 
